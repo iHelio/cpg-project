@@ -1,0 +1,13 @@
+spring:
+  devtools:
+    restart:
+      enabled: true
+
+logging:
+  level:
+    com.ihelio.cpg: DEBUG
+
+management:
+  endpoint:
+    health:
+      show-details: always

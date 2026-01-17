@@ -1,0 +1,90 @@
+# Compiled class files
+*.class
+
+# Log files
+*.log
+
+# Package files
+*.jar
+*.war
+*.nar
+*.ear
+*.zip
+*.tar.gz
+*.rar
+
+# Maven
+target/
+pom.xml.tag
+pom.xml.releaseBackup
+pom.xml.versionsBackup
+pom.xml.next
+release.properties
+dependency-reduced-pom.xml
+buildNumber.properties
+.mvn/timing.properties
+.mvn/wrapper/maven-wrapper.jar
+
+# IDE - IntelliJ IDEA
+.idea/
+*.iws
+*.iml
+*.ipr
+out/
+
+# IDE - Eclipse
+.apt_generated
+.classpath
+.factorypath
+.project
+.settings
+.springBeans
+.sts4-cache
+bin/
+
+# IDE - VS Code
+.vscode/
+
+# IDE - NetBeans
+/nbproject/private/
+/nbbuild/
+/dist/
+/nbdist/
+/.nb-gradle/
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Spring Boot
+application-*.local.yml
+application-*.local.properties
+
+# Environment files (security)
+.env
+.env.*
+*.env
+!.env.example
+
+# Secrets (security)
+*.pem
+*.key
+*.crt
+credentials.json
+secrets.json
+
+# Gradle (if migrated)
+.gradle/
+build/
+
+# Test output
+test-output/
+surefire-reports/
+
+# SBOM output
+bom.json
+bom.xml
+
+# Coverage reports
+jacoco.exec
+coverage/
