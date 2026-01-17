@@ -1,0 +1,190 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<definitions xmlns="https://www.omg.org/spec/DMN/20191111/MODEL/"
+             xmlns:dmndi="https://www.omg.org/spec/DMN/20191111/DMNDI/"
+             xmlns:dc="http://www.omg.org/spec/DMN/20180521/DC/"
+             xmlns:feel="https://www.omg.org/spec/DMN/20191111/FEEL/"
+             id="onboarding-policies"
+             name="Onboarding Policies"
+             namespace="https://ihelio.com/cpg/dmn/onboarding">
+
+    <!-- Input Data Definitions -->
+    <inputData id="location" name="location">
+        <variable name="location" typeRef="string"/>
+    </inputData>
+
+    <inputData id="consentGiven" name="consentGiven">
+        <variable name="consentGiven" typeRef="boolean"/>
+    </inputData>
+
+    <inputData id="disclosuresSigned" name="disclosuresSigned">
+        <variable name="disclosuresSigned" typeRef="boolean"/>
+    </inputData>
+
+    <inputData id="daysSinceOffer" name="daysSinceOffer">
+        <variable name="daysSinceOffer" typeRef="number"/>
+    </inputData>
+
+    <inputData id="roleType" name="roleType">
+        <variable name="roleType" typeRef="string"/>
+    </inputData>
+
+    <inputData id="isRemote" name="isRemote">
+        <variable name="isRemote" typeRef="boolean"/>
+    </inputData>
+
+    <!-- Decision: Background Check Allowed -->
+    <decision id="backgroundCheckAllowed" name="Background Check Allowed">
+        <variable name="backgroundCheckAllowed" typeRef="boolean"/>
+        <informationRequirement>
+            <requiredInput href="#location"/>
+        </informationRequirement>
+        <informationRequirement>
+            <requiredInput href="#consentGiven"/>
+        </informationRequirement>
+        <informationRequirement>
+            <requiredInput href="#disclosuresSigned"/>
+        </informationRequirement>
+        <informationRequirement>
+            <requiredInput href="#daysSinceOffer"/>
+        </informationRequirement>
+        <decisionTable id="backgroundCheckTable" hitPolicy="FIRST">
+            <input id="input_consent">
+                <inputExpression typeRef="boolean">
+                    <text>consentGiven</text>
+                </inputExpression>
+            </input>
+            <input id="input_disclosures">
+                <inputExpression typeRef="boolean">
+                    <text>disclosuresSigned</text>
+                </inputExpression>
+            </input>
+            <input id="input_location">
+                <inputExpression typeRef="string">
+                    <text>location</text>
+                </inputExpression>
+            </input>
+            <input id="input_days">
+                <inputExpression typeRef="number">
+                    <text>daysSinceOffer</text>
+                </inputExpression>
+            </input>
+            <output id="output_allowed" name="allowed" typeRef="boolean"/>
+            <!-- No consent = always blocked -->
+            <rule id="rule_no_consent">
+                <inputEntry><text>false</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>false</text></outputEntry>
+            </rule>
+            <!-- No disclosures = blocked -->
+            <rule id="rule_no_disclosures">
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>false</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>false</text></outputEntry>
+            </rule>
+            <!-- California: Ban-the-box, must wait 5 days -->
+            <rule id="rule_california_wait">
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>"US-CA"</text></inputEntry>
+                <inputEntry><text>&lt; 5</text></inputEntry>
+                <outputEntry><text>false</text></outputEntry>
+            </rule>
+            <!-- California: After 5 days, allowed -->
+            <rule id="rule_california_ok">
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>"US-CA"</text></inputEntry>
+                <inputEntry><text>&gt;= 5</text></inputEntry>
+                <outputEntry><text>true</text></outputEntry>
+            </rule>
+            <!-- All other valid cases: consent + disclosures = allowed -->
+            <rule id="rule_allowed">
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>true</text></outputEntry>
+            </rule>
+            <!-- Default: blocked -->
+            <rule id="rule_default">
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>false</text></outputEntry>
+            </rule>
+        </decisionTable>
+    </decision>
+
+    <!-- Decision: Equipment Package -->
+    <decision id="equipmentPackage" name="Equipment Package">
+        <variable name="equipmentPackage" typeRef="string"/>
+        <informationRequirement>
+            <requiredInput href="#roleType"/>
+        </informationRequirement>
+        <informationRequirement>
+            <requiredInput href="#isRemote"/>
+        </informationRequirement>
+        <informationRequirement>
+            <requiredInput href="#location"/>
+        </informationRequirement>
+        <decisionTable id="equipmentTable" hitPolicy="FIRST">
+            <input id="input_role">
+                <inputExpression typeRef="string">
+                    <text>roleType</text>
+                </inputExpression>
+            </input>
+            <input id="input_remote">
+                <inputExpression typeRef="boolean">
+                    <text>isRemote</text>
+                </inputExpression>
+            </input>
+            <input id="input_is_eu">
+                <inputExpression typeRef="boolean">
+                    <text>starts with(location, "EU-")</text>
+                </inputExpression>
+            </input>
+            <output id="output_package" name="package" typeRef="string"/>
+            <!-- Engineering remote -->
+            <rule id="rule_eng_remote">
+                <inputEntry><text>"ENGINEERING"</text></inputEntry>
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>"LAPTOP_PREMIUM_REMOTE"</text></outputEntry>
+            </rule>
+            <!-- Engineering onsite -->
+            <rule id="rule_eng_onsite">
+                <inputEntry><text>"ENGINEERING"</text></inputEntry>
+                <inputEntry><text>false</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>"LAPTOP_PREMIUM_DOCKING"</text></outputEntry>
+            </rule>
+            <!-- Sales remote -->
+            <rule id="rule_sales_remote">
+                <inputEntry><text>"SALES"</text></inputEntry>
+                <inputEntry><text>true</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>"LAPTOP_STANDARD_MOBILE"</text></outputEntry>
+            </rule>
+            <!-- EU locations get GDPR config -->
+            <rule id="rule_eu_any">
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>true</text></inputEntry>
+                <outputEntry><text>"LAPTOP_STANDARD_GDPR"</text></outputEntry>
+            </rule>
+            <!-- Default -->
+            <rule id="rule_default_equip">
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <inputEntry><text>-</text></inputEntry>
+                <outputEntry><text>"LAPTOP_STANDARD"</text></outputEntry>
+            </rule>
+        </decisionTable>
+    </decision>
+
+</definitions>
