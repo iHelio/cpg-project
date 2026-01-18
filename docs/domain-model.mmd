@@ -1,0 +1,232 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd'}}}%%
+classDiagram
+    direction TB
+
+    %% Process Graph Aggregate
+    class ProcessGraph {
+        +ProcessGraphId id
+        +String name
+        +String description
+        +int version
+        +ProcessGraphStatus status
+        +List~Node~ nodes
+        +List~Edge~ edges
+        +List~NodeId~ entryNodeIds
+        +List~NodeId~ terminalNodeIds
+        +Metadata metadata
+        +findNode(NodeId) Optional~Node~
+        +findEdge(EdgeId) Optional~Edge~
+        +getOutboundEdges(NodeId) List~Edge~
+        +getInboundEdges(NodeId) List~Edge~
+        +validate() List~String~
+    }
+
+    class Node {
+        +NodeId id
+        +String name
+        +String description
+        +int version
+        +Preconditions preconditions
+        +List~PolicyGate~ policyGates
+        +List~BusinessRule~ businessRules
+        +Action action
+        +EventConfig eventConfig
+        +ExceptionRoutes exceptionRoutes
+    }
+
+    class Edge {
+        +EdgeId id
+        +String name
+        +NodeId sourceNodeId
+        +NodeId targetNodeId
+        +GuardConditions guardConditions
+        +ExecutionSemantics executionSemantics
+        +Priority priority
+        +EventTriggers eventTriggers
+        +CompensationSemantics compensationSemantics
+    }
+
+    class Preconditions {
+        +List~FeelExpression~ clientContextConditions
+        +List~FeelExpression~ domainContextConditions
+        +none()$ Preconditions
+    }
+
+    class PolicyGate {
+        +String id
+        +String name
+        +PolicyType type
+        +String dmnDecisionRef
+        +String requiredOutcome
+    }
+
+    class BusinessRule {
+        +String id
+        +String name
+        +String dmnDecisionRef
+        +RuleCategory category
+    }
+
+    class Action {
+        +ActionType type
+        +String handlerRef
+        +String description
+        +ActionConfig config
+    }
+
+    class GuardConditions {
+        +List~FeelExpression~ contextConditions
+        +List~RuleOutcomeCondition~ ruleOutcomeConditions
+        +List~PolicyOutcomeCondition~ policyOutcomeConditions
+        +List~EventCondition~ eventConditions
+        +hasConditions() boolean
+        +alwaysTrue()$ GuardConditions
+    }
+
+    class ExecutionSemantics {
+        +ExecutionType type
+        +JoinType joinType
+        +String compensationRef
+        +sequential()$ ExecutionSemantics
+        +parallel(JoinType)$ ExecutionSemantics
+    }
+
+    class FeelExpression {
+        +String expression
+        +String description
+        +of(String)$ FeelExpression
+    }
+
+    %% Process Instance Aggregate
+    class ProcessInstance {
+        +ProcessInstanceId id
+        +ProcessGraphId processGraphId
+        +int processGraphVersion
+        +String correlationId
+        +Instant startedAt
+        +Instant completedAt
+        +ProcessInstanceStatus status
+        +ExecutionContext context
+        +List~NodeExecution~ nodeExecutions
+        +Set~NodeId~ activeNodeIds
+        +Set~EdgeId~ pendingEdgeIds
+        +startNodeExecution(NodeId)
+        +completeNodeExecution(NodeId, Object)
+        +failNodeExecution(NodeId, String)
+        +suspend()
+        +resume()
+        +complete()
+    }
+
+    class ExecutionContext {
+        +Map clientContext
+        +Map domainContext
+        +Map accumulatedState
+        +List~ReceivedEvent~ eventHistory
+        +List~Obligation~ obligations
+        +toFeelContext() Map
+        +getValue(String) Object
+        +withState(String, Object) ExecutionContext
+        +withEvent(ReceivedEvent) ExecutionContext
+    }
+
+    class NodeExecution {
+        +NodeId nodeId
+        +Instant startedAt
+        +Instant completedAt
+        +NodeExecutionStatus status
+        +Object result
+        +String error
+    }
+
+    %% Events
+    class ProcessEvent {
+        +String eventId
+        +String eventType
+        +EventSource source
+        +String correlationId
+        +Instant timestamp
+        +Map payload
+        +nodeExecuted(...)$ ProcessEvent
+        +processStarted(...)$ ProcessEvent
+        +processCompleted(...)$ ProcessEvent
+    }
+
+    %% Enums
+    class ProcessGraphStatus {
+        <<enumeration>>
+        DRAFT
+        PUBLISHED
+        DEPRECATED
+        ARCHIVED
+    }
+
+    class ActionType {
+        <<enumeration>>
+        SYSTEM_INVOCATION
+        HUMAN_TASK
+        AGENT_ASSISTED
+        DECISION
+        NOTIFICATION
+        WAIT
+    }
+
+    class ExecutionType {
+        <<enumeration>>
+        SEQUENTIAL
+        PARALLEL
+        COMPENSATING
+    }
+
+    class JoinType {
+        <<enumeration>>
+        ALL
+        ANY
+        N_OF_M
+    }
+
+    class PolicyType {
+        <<enumeration>>
+        COMPLIANCE
+        STATUTORY
+        REGULATORY
+        ORGANIZATIONAL
+    }
+
+    class ProcessInstanceStatus {
+        <<enumeration>>
+        RUNNING
+        SUSPENDED
+        COMPLETED
+        FAILED
+        CANCELLED
+    }
+
+    %% Relationships
+    ProcessGraph "1" *-- "0..*" Node : contains
+    ProcessGraph "1" *-- "0..*" Edge : contains
+    ProcessGraph --> ProcessGraphStatus
+
+    Node "1" *-- "1" Preconditions
+    Node "1" *-- "0..*" PolicyGate
+    Node "1" *-- "0..*" BusinessRule
+    Node "1" *-- "1" Action
+    Preconditions "1" *-- "0..*" FeelExpression
+
+    Edge "1" *-- "1" GuardConditions
+    Edge "1" *-- "1" ExecutionSemantics
+    Edge --> Node : sourceNodeId
+    Edge --> Node : targetNodeId
+    GuardConditions "1" *-- "0..*" FeelExpression
+
+    Action --> ActionType
+    ExecutionSemantics --> ExecutionType
+    ExecutionSemantics --> JoinType
+    PolicyGate --> PolicyType
+
+    ProcessInstance --> ProcessGraph : references
+    ProcessInstance "1" *-- "1" ExecutionContext
+    ProcessInstance "1" *-- "0..*" NodeExecution
+    ProcessInstance --> ProcessInstanceStatus
+
+    ExecutionContext "1" *-- "0..*" ProcessEvent : eventHistory

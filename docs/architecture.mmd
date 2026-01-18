@@ -1,0 +1,146 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e1f5fe', 'primaryTextColor': '#01579b', 'primaryBorderColor': '#0288d1', 'lineColor': '#0288d1', 'secondaryColor': '#fff3e0', 'tertiaryColor': '#e8f5e9'}}}%%
+flowchart TB
+    subgraph External["External Systems"]
+        UI[/"Web UI / API Clients"/]
+        ExtEvents[/"External Events<br/>(Kafka, SQS, etc.)"/]
+        ExtSystems[/"HR Systems<br/>Background Check<br/>IT Provisioning"/]
+    end
+
+    subgraph Interfaces["interfaces"]
+        REST["REST Controllers"]
+        EventListener["Event Listeners"]
+    end
+
+    subgraph Application["application"]
+        Handlers["Action Handler Registry"]
+        UseCases["Use Cases / Services"]
+        GraphBuilders["Process Graph Builders<br/>(OnboardingProcessGraphBuilder)"]
+    end
+
+    subgraph Domain["domain (Core)"]
+        subgraph Engine["engine"]
+            PEE["ProcessExecutionEngine"]
+            NE["NodeEvaluator"]
+            EE["EdgeEvaluator"]
+            EC["ExecutionCoordinator"]
+            CH["CompensationHandler"]
+        end
+
+        subgraph Model["model"]
+            PG["ProcessGraph"]
+            Node["Node"]
+            Edge["Edge"]
+            Feel["FeelExpression"]
+        end
+
+        subgraph Execution["execution"]
+            PI["ProcessInstance"]
+            ExCtx["ExecutionContext"]
+        end
+
+        subgraph Ports["Ports (Interfaces)"]
+            ExprEval["ExpressionEvaluator"]
+            PolicyEval["PolicyEvaluator"]
+            RuleEval["RuleEvaluator"]
+            ActionH["ActionHandler"]
+            EventPub["ProcessEventPublisher"]
+            GraphRepo["ProcessGraphRepository"]
+            InstRepo["ProcessInstanceRepository"]
+        end
+
+        subgraph Events["event"]
+            PEvent["ProcessEvent"]
+            Correlator["EventCorrelator"]
+            EventHandler["ProcessEventHandler"]
+        end
+    end
+
+    subgraph Infrastructure["infrastructure"]
+        subgraph FEEL["feel"]
+            KieFeel["KieFeelExpressionEvaluator"]
+        end
+
+        subgraph DMN["dmn"]
+            DmnSvc["DmnDecisionService"]
+            DmnPolicy["DmnPolicyEvaluator"]
+            DmnRule["DmnRuleEvaluator"]
+        end
+
+        subgraph Persistence["persistence"]
+            MemGraph["InMemoryProcessGraphRepository"]
+            MemInst["InMemoryProcessInstanceRepository"]
+        end
+
+        subgraph EventInfra["event"]
+            MemEvent["InMemoryEventPublisher"]
+        end
+    end
+
+    %% External connections
+    UI --> REST
+    ExtEvents --> EventListener
+    ExtSystems -.-> EventListener
+
+    %% Interface to Application
+    REST --> UseCases
+    EventListener --> EventHandler
+
+    %% Application to Domain
+    UseCases --> PEE
+    Handlers --> ActionH
+    GraphBuilders --> PG
+
+    %% Engine internal connections
+    PEE --> NE
+    PEE --> EE
+    PEE --> EC
+    PEE --> CH
+    PEE --> EventPub
+
+    %% Engine uses Model
+    NE --> Node
+    NE --> ExCtx
+    EE --> Edge
+    EE --> ExCtx
+    PEE --> PI
+    PEE --> PG
+
+    %% Engine uses Ports
+    NE --> ExprEval
+    NE --> PolicyEval
+    NE --> RuleEval
+    EE --> ExprEval
+    PEE --> ActionH
+    PEE --> GraphRepo
+    PEE --> InstRepo
+
+    %% Event handling
+    EventHandler --> Correlator
+    EventHandler --> NE
+    EventHandler --> EE
+    Correlator --> ExprEval
+
+    %% Infrastructure implements Ports
+    KieFeel -.->|implements| ExprEval
+    DmnPolicy -.->|implements| PolicyEval
+    DmnRule -.->|implements| RuleEval
+    MemGraph -.->|implements| GraphRepo
+    MemInst -.->|implements| InstRepo
+    MemEvent -.->|implements| EventPub
+
+    %% DMN infrastructure
+    DmnPolicy --> DmnSvc
+    DmnRule --> DmnSvc
+
+    %% Styling
+    classDef domain fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef infra fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef app fill:#e8f5e9,stroke:#2e7d32,stroke-width:2px
+    classDef iface fill:#fce4ec,stroke:#c2185b,stroke-width:2px
+    classDef external fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+
+    class PEE,NE,EE,EC,CH,PG,Node,Edge,Feel,PI,ExCtx,ExprEval,PolicyEval,RuleEval,ActionH,EventPub,GraphRepo,InstRepo,PEvent,Correlator,EventHandler domain
+    class KieFeel,DmnSvc,DmnPolicy,DmnRule,MemGraph,MemInst,MemEvent infra
+    class Handlers,UseCases,GraphBuilders app
+    class REST,EventListener iface
+    class UI,ExtEvents,ExtSystems external

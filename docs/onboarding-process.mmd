@@ -1,0 +1,76 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#01579b'}}}%%
+flowchart TB
+    subgraph Entry["Entry Point"]
+        A[("Offer Accepted")]
+    end
+
+    subgraph Validation["Initial Validation"]
+        B["Validate Offer<br/>Documents"]
+        C["Background Check<br/>Initiation"]
+    end
+
+    subgraph Parallel["Parallel Execution"]
+        direction TB
+        subgraph IT["IT Provisioning"]
+            D["Create User<br/>Accounts"]
+            E["Provision<br/>Equipment"]
+        end
+
+        subgraph HR["HR Documentation"]
+            F["Generate<br/>Employment Docs"]
+            G["Benefits<br/>Enrollment"]
+        end
+
+        subgraph BGCheck["Background Verification"]
+            H["Await Background<br/>Check Result"]
+        end
+    end
+
+    subgraph Completion["Completion"]
+        I["Final Review"]
+        J(["Onboarding<br/>Complete"])
+    end
+
+    subgraph Cancellation["Cancellation Path"]
+        K(["Onboarding<br/>Cancelled"])
+    end
+
+    %% Main flow
+    A -->|"offer.signed = true"| B
+    B -->|"documents.valid = true"| C
+    C -->|"parallel split"| D
+    C -->|"parallel split"| F
+    C -->|"parallel split"| H
+
+    D -->|"accounts.created"| E
+    F -->|"docs.generated"| G
+
+    %% Join at final review
+    E -->|"join: ALL"| I
+    G -->|"join: ALL"| I
+    H -->|"bgCheck.passed = true<br/>join: ALL"| I
+
+    I -->|"review.approved"| J
+
+    %% Cancellation paths
+    B -.->|"documents.valid = false"| K
+    H -.->|"bgCheck.passed = false"| K
+    I -.->|"review.approved = false"| K
+
+    %% Event triggers
+    H -.->|"event: background.check.completed"| H
+
+    %% Styling
+    classDef entry fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef parallel fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef complete fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    classDef cancel fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    classDef wait fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+
+    class A entry
+    class B,C,I process
+    class D,E,F,G parallel
+    class H wait
+    class J complete
+    class K cancel

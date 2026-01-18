@@ -1,0 +1,137 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd'}}}%%
+sequenceDiagram
+    autonumber
+    participant Client
+    participant Engine as ProcessExecutionEngine
+    participant NodeEval as NodeEvaluator
+    participant EdgeEval as EdgeEvaluator
+    participant ExprEval as ExpressionEvaluator
+    participant PolicyEval as PolicyEvaluator
+    participant RuleEval as RuleEvaluator
+    participant ActionHandler
+    participant Coordinator as ExecutionCoordinator
+    participant CompHandler as CompensationHandler
+    participant EventPub as EventPublisher
+    participant Instance as ProcessInstance
+
+    rect rgb(232, 245, 233)
+        Note over Client,Instance: Process Start
+        Client->>Engine: startProcess(graph, context)
+        Engine->>Instance: create new instance
+        Engine->>EventPub: publish(process.started)
+        Engine->>Instance: activate entry nodes
+        Engine-->>Client: ProcessInstance
+    end
+
+    rect rgb(227, 242, 253)
+        Note over Client,Instance: Node Execution
+        Client->>Engine: executeNode(instance, graph, node)
+
+        Engine->>NodeEval: evaluate(node, context)
+        NodeEval->>ExprEval: evaluateAllAsBoolean(preconditions)
+        ExprEval-->>NodeEval: boolean
+
+        alt Preconditions failed
+            NodeEval-->>Engine: NodeEvaluation(blocked)
+            Engine-->>Client: NodeExecutionResult(skipped)
+        end
+
+        NodeEval->>PolicyEval: evaluateAll(policyGates)
+        PolicyEval-->>NodeEval: List~PolicyResult~
+
+        alt Policy blocked
+            NodeEval-->>Engine: NodeEvaluation(blocked by policy)
+            Engine-->>Client: NodeExecutionResult(skipped)
+        end
+
+        NodeEval->>RuleEval: evaluateAll(businessRules)
+        RuleEval-->>NodeEval: List~RuleResult~ + outputs
+        NodeEval-->>Engine: NodeEvaluation(available, ruleOutputs)
+
+        Engine->>Instance: startNodeExecution(nodeId)
+        Engine->>ActionHandler: execute(actionContext)
+
+        alt Action succeeded
+            ActionHandler-->>Engine: ActionResult(success, output)
+            Engine->>Instance: updateContext(output)
+            Engine->>Instance: completeNodeExecution(nodeId)
+            Engine->>CompHandler: resetRetryCount(node)
+            Engine->>EventPub: publish(node.executed)
+            Engine-->>Client: NodeExecutionResult(success)
+        else Action failed
+            ActionHandler-->>Engine: ActionResult(failed, error)
+            Engine->>CompHandler: determineCompensation(...)
+            CompHandler-->>Engine: CompensationAction
+            alt Retry
+                Engine->>Instance: restart node execution
+            else Escalate/Rollback/Fail
+                Engine->>Instance: failNodeExecution(nodeId)
+            end
+            Engine-->>Client: NodeExecutionResult(failed, compensation)
+        end
+    end
+
+    rect rgb(255, 243, 224)
+        Note over Client,Instance: Edge Traversal
+        Client->>Engine: evaluateAndTraverseEdges(instance, graph, node)
+        Engine->>Engine: getOutboundEdges(nodeId)
+
+        loop For each outbound edge
+            Engine->>EdgeEval: evaluate(edge, context, ruleOutputs, policyOutcomes)
+            EdgeEval->>ExprEval: evaluateAllAsBoolean(contextConditions)
+            EdgeEval->>EdgeEval: check ruleOutcomeConditions
+            EdgeEval->>EdgeEval: check policyOutcomeConditions
+            EdgeEval->>EdgeEval: check eventConditions
+            EdgeEval-->>Engine: EdgeEvaluation
+        end
+
+        Engine->>EdgeEval: selectEdgesToTraverse(evaluations)
+        EdgeEval-->>Engine: List~Edge~ (sorted by priority)
+
+        Engine->>Coordinator: categorizeEdges(edges)
+        Coordinator-->>Engine: ExecutionPlan(sequential, parallel)
+
+        alt Has parallel edges
+            Engine->>Coordinator: initiateParallelExecution(instance, parallelEdges)
+            Coordinator-->>Engine: List~ParallelBranch~
+        end
+
+        Engine-->>Client: List~EdgeTraversal~
+    end
+
+    rect rgb(252, 228, 236)
+        Note over Client,Instance: Event Handling
+        Client->>Engine: handleEvent(event, instances, graph)
+
+        loop For each running instance
+            Engine->>Instance: context.withEvent(receivedEvent)
+            Engine->>Engine: getNodesSubscribedToEvent(eventType)
+
+            loop For each subscribed node
+                Engine->>NodeEval: evaluate(node, context)
+                alt Node now available
+                    Engine->>Instance: startNodeExecution(nodeId)
+                end
+            end
+
+            Engine->>Engine: getEdgesReevaluatedByEvent(eventType)
+            loop For each pending edge
+                Engine->>EdgeEval: evaluate(edge, context)
+                alt Edge now traversable
+                    Engine->>Instance: activatePendingEdge(edgeId)
+                end
+            end
+        end
+
+        Engine-->>Client: List~ProcessInstance~ (affected)
+    end
+
+    rect rgb(243, 229, 245)
+        Note over Client,Instance: Process Completion
+        Engine->>Engine: check if terminal node reached
+        Engine->>Engine: check if no active nodes
+        Engine->>Instance: complete()
+        Engine->>EventPub: publish(process.completed)
+        Engine->>Coordinator: cleanupInstance(instance)
+        Engine->>CompHandler: cleanupInstance(instance)
+    end
