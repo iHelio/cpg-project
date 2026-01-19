@@ -165,6 +165,32 @@ public class ExecutionContext {
         return toBuilder().obligations(newObligations).build();
     }
 
+    /**
+     * Returns a new context with updated client context.
+     *
+     * @param key the client context key
+     * @param value the client context value
+     * @return new ExecutionContext with updated client context
+     */
+    public ExecutionContext withClientContext(String key, Object value) {
+        Map<String, Object> newClientContext = new HashMap<>(clientContext);
+        newClientContext.put(key, value);
+        return toBuilder().clientContext(newClientContext).build();
+    }
+
+    /**
+     * Returns a new context with updated domain context.
+     *
+     * @param key the domain context key
+     * @param value the domain context value
+     * @return new ExecutionContext with updated domain context
+     */
+    public ExecutionContext withDomainContext(String key, Object value) {
+        Map<String, Object> newDomainContext = new HashMap<>(domainContext);
+        newDomainContext.put(key, value);
+        return toBuilder().domainContext(newDomainContext).build();
+    }
+
     public Builder toBuilder() {
         return new Builder()
             .clientContext(new HashMap<>(clientContext))

@@ -80,6 +80,32 @@ public class ProcessExecutionException extends RuntimeException {
         this.retryable = false;
     }
 
+    /**
+     * Creates an exception with context information using String IDs.
+     *
+     * @param message error message
+     * @param processInstanceId process instance ID as string
+     * @param nodeId node ID as string
+     * @param errorType type of error
+     * @param retryable whether the operation can be retried
+     * @return the exception
+     */
+    public static ProcessExecutionException withContext(
+            String message,
+            String processInstanceId,
+            String nodeId,
+            ErrorType errorType,
+            boolean retryable) {
+        return new ProcessExecutionException(
+            message,
+            processInstanceId != null
+                ? new ProcessInstance.ProcessInstanceId(processInstanceId) : null,
+            nodeId != null ? new Node.NodeId(nodeId) : null,
+            errorType,
+            retryable
+        );
+    }
+
     public String getProcessInstanceId() {
         return processInstanceId;
     }
