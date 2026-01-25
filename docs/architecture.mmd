@@ -12,6 +12,12 @@ flowchart TB
     end
 
     subgraph Application["application"]
+        subgraph Orchestration["orchestration"]
+            InstOrch["InstanceOrchestrator"]
+            CtxAsm["ContextAssembler"]
+            EligEval["EligibilityEvaluator"]
+            NavDec["NavigationDecider"]
+        end
         Handlers["Action Handler Registry"]
         UseCases["Use Cases / Services"]
         GraphBuilders["Process Graph Builders<br/>(OnboardingProcessGraphBuilder)"]
@@ -38,6 +44,15 @@ flowchart TB
             ExCtx["ExecutionContext"]
         end
 
+        subgraph OrchDomain["orchestration"]
+            RtCtx["RuntimeContext"]
+            EligSpace["EligibleSpace"]
+            NavDecision["NavigationDecision"]
+            DecTrace["DecisionTrace"]
+            GovResult["GovernanceResult"]
+            OrchEvent["OrchestrationEvent"]
+        end
+
         subgraph Ports["Ports (Interfaces)"]
             ExprEval["ExpressionEvaluator"]
             PolicyEval["PolicyEvaluator"]
@@ -46,6 +61,10 @@ flowchart TB
             EventPub["ProcessEventPublisher"]
             GraphRepo["ProcessGraphRepository"]
             InstRepo["ProcessInstanceRepository"]
+            ProcOrch["ProcessOrchestrator"]
+            ExecGov["ExecutionGovernor"]
+            DecTracer["DecisionTracer"]
+            NodeSel["NodeSelector"]
         end
 
         subgraph Events["event"]
@@ -69,10 +88,18 @@ flowchart TB
         subgraph Persistence["persistence"]
             MemGraph["InMemoryProcessGraphRepository"]
             MemInst["InMemoryProcessInstanceRepository"]
+            MemTrace["InMemoryDecisionTraceRepository"]
         end
 
         subgraph EventInfra["event"]
             MemEvent["InMemoryEventPublisher"]
+        end
+
+        subgraph OrchInfra["orchestration"]
+            DefProcOrch["DefaultProcessOrchestrator"]
+            DefExecGov["DefaultExecutionGovernor"]
+            DefDecTracer["DefaultDecisionTracer"]
+            OrchConfig["OrchestratorConfigProperties"]
         end
     end
 
@@ -89,6 +116,16 @@ flowchart TB
     UseCases --> PEE
     Handlers --> ActionH
     GraphBuilders --> PG
+
+    %% Orchestration connections
+    REST --> InstOrch
+    InstOrch --> CtxAsm
+    InstOrch --> EligEval
+    InstOrch --> NavDec
+    InstOrch --> PEE
+    EligEval --> NE
+    EligEval --> EE
+    NavDec --> NodeSel
 
     %% Engine internal connections
     PEE --> NE
@@ -127,6 +164,10 @@ flowchart TB
     MemGraph -.->|implements| GraphRepo
     MemInst -.->|implements| InstRepo
     MemEvent -.->|implements| EventPub
+    DefProcOrch -.->|implements| ProcOrch
+    DefExecGov -.->|implements| ExecGov
+    DefDecTracer -.->|implements| DecTracer
+    NavDec -.->|implements| NodeSel
 
     %% DMN infrastructure
     DmnPolicy --> DmnSvc
@@ -139,8 +180,8 @@ flowchart TB
     classDef iface fill:#fce4ec,stroke:#c2185b,stroke-width:2px
     classDef external fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
 
-    class PEE,NE,EE,EC,CH,PG,Node,Edge,Feel,PI,ExCtx,ExprEval,PolicyEval,RuleEval,ActionH,EventPub,GraphRepo,InstRepo,PEvent,Correlator,EventHandler domain
-    class KieFeel,DmnSvc,DmnPolicy,DmnRule,MemGraph,MemInst,MemEvent infra
-    class Handlers,UseCases,GraphBuilders app
+    class PEE,NE,EE,EC,CH,PG,Node,Edge,Feel,PI,ExCtx,ExprEval,PolicyEval,RuleEval,ActionH,EventPub,GraphRepo,InstRepo,PEvent,Correlator,EventHandler,RtCtx,EligSpace,NavDecision,DecTrace,GovResult,OrchEvent,ProcOrch,ExecGov,DecTracer,NodeSel domain
+    class KieFeel,DmnSvc,DmnPolicy,DmnRule,MemGraph,MemInst,MemEvent,MemTrace,DefProcOrch,DefExecGov,DefDecTracer,OrchConfig infra
+    class Handlers,UseCases,GraphBuilders,InstOrch,CtxAsm,EligEval,NavDec app
     class REST,EventListener iface
     class UI,ExtEvents,ExtSystems external
