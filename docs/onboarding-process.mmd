@@ -1,76 +1,90 @@
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#01579b'}}}%%
 flowchart TB
     subgraph Entry["Entry Point"]
-        A[("Offer Accepted")]
+        A[("offer-accepted<br/>Offer Accepted")]
     end
 
     subgraph Validation["Initial Validation"]
-        B["Validate Offer<br/>Documents"]
-        C["Background Check<br/>Initiation"]
+        B["validate-candidate<br/>Validate Candidate"]
     end
 
-    subgraph Parallel["Parallel Execution"]
+    subgraph BackgroundCheck["Background Check"]
+        C["run-background-check<br/>Run Background Check"]
+        D["review-background-results<br/>Review Background Results<br/>(HUMAN_TASK)"]
+    end
+
+    subgraph Parallel["Parallel Execution (after BG check passes)"]
         direction TB
         subgraph IT["IT Provisioning"]
-            D["Create User<br/>Accounts"]
-            E["Provision<br/>Equipment"]
+            E["order-equipment<br/>Order Equipment"]
+            F["ship-equipment<br/>Ship Equipment"]
+            G["create-accounts<br/>Create Accounts"]
         end
 
         subgraph HR["HR Documentation"]
-            F["Generate<br/>Employment Docs"]
-            G["Benefits<br/>Enrollment"]
-        end
-
-        subgraph BGCheck["Background Verification"]
-            H["Await Background<br/>Check Result"]
+            H["collect-documents<br/>Collect Documents<br/>(HUMAN_TASK)"]
+            I["verify-i9<br/>Verify I-9<br/>(HUMAN_TASK)"]
         end
     end
 
     subgraph Completion["Completion"]
-        I["Final Review"]
-        J(["Onboarding<br/>Complete"])
+        J["schedule-orientation<br/>Schedule Orientation"]
+        K(["onboarding-complete<br/>Onboarding Complete"])
     end
 
     subgraph Cancellation["Cancellation Path"]
-        K(["Onboarding<br/>Cancelled"])
+        L(["onboarding-cancelled<br/>Onboarding Cancelled"])
     end
 
-    %% Main flow
-    A -->|"offer.signed = true"| B
-    B -->|"documents.valid = true"| C
-    C -->|"parallel split"| D
-    C -->|"parallel split"| F
-    C -->|"parallel split"| H
+    %% Main flow - Entry to Validation
+    A -->|"offer.status = ACCEPTED"| B
 
-    D -->|"accounts.created"| E
-    F -->|"docs.generated"| G
+    %% Validation to Background Check
+    B -->|"validation.status = PASSED"| C
+    B -.->|"validation failed"| L
 
-    %% Join at final review
-    E -->|"join: ALL"| I
-    G -->|"join: ALL"| I
-    H -->|"bgCheck.passed = true<br/>join: ALL"| I
+    %% Background Check paths
+    C -->|"bgCheck.requiresReview = true"| D
+    C -->|"bgCheck.passed = true<br/>(parallel)"| E
+    C -->|"bgCheck.passed = true<br/>(parallel)"| G
+    C -->|"bgCheck.passed = true<br/>(parallel)"| H
+    C -.->|"bgCheck failed"| L
 
-    I -->|"review.approved"| J
+    %% Review paths
+    D -->|"review approved<br/>(parallel)"| E
+    D -->|"review approved<br/>(parallel)"| G
+    D -->|"review approved<br/>(parallel)"| H
+    D -.->|"review rejected"| L
 
-    %% Cancellation paths
-    B -.->|"documents.valid = false"| K
-    H -.->|"bgCheck.passed = false"| K
-    I -.->|"review.approved = false"| K
+    %% IT Provisioning flow
+    E -->|"equipmentOrder.status = READY"| F
+    G --> J
+    F --> J
 
-    %% Event triggers
-    H -.->|"event: background.check.completed"| H
+    %% HR Documentation flow
+    H -->|"documents collected<br/>US employee"| I
+    I --> J
+
+    %% Completion
+    J -->|"all prerequisites met"| K
+
+    %% Policy Gates shown
+    C -.->|"Policy: FCRA Compliance<br/>Policy: Ban-the-Box"| C
+    G -.->|"Policy: Access Policy"| G
+    H -.->|"Policy: Document Compliance"| H
+    I -.->|"Policy: I-9 Compliance"| I
 
     %% Styling
     classDef entry fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
     classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
-    classDef parallel fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef humanTask fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
     classDef complete fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
     classDef cancel fill:#ffcdd2,stroke:#c62828,stroke-width:2px
-    classDef wait fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef bgcheck fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
 
     class A entry
-    class B,C,I process
-    class D,E,F,G parallel
-    class H wait
-    class J complete
-    class K cancel
+    class B,E,F,G,J process
+    class C,D bgcheck
+    class H,I humanTask
+    class K complete
+    class L cancel
