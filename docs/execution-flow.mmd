@@ -2,6 +2,12 @@
 sequenceDiagram
     autonumber
     participant Client
+    participant Orchestrator as ProcessOrchestrator
+    participant CtxAssembler as ContextAssembler
+    participant EligEval as EligibilityEvaluator
+    participant NavDecider as NavigationDecider
+    participant Governor as ExecutionGovernor
+    participant Tracer as DecisionTracer
     participant Engine as ProcessExecutionEngine
     participant NodeEval as NodeEvaluator
     participant EdgeEval as EdgeEvaluator
@@ -9,129 +15,172 @@ sequenceDiagram
     participant PolicyEval as PolicyEvaluator
     participant RuleEval as RuleEvaluator
     participant ActionHandler
-    participant Coordinator as ExecutionCoordinator
-    participant CompHandler as CompensationHandler
     participant EventPub as EventPublisher
     participant Instance as ProcessInstance
 
     rect rgb(232, 245, 233)
-        Note over Client,Instance: Process Start
-        Client->>Engine: startProcess(graph, context)
-        Engine->>Instance: create new instance
-        Engine->>EventPub: publish(process.started)
-        Engine->>Instance: activate entry nodes
-        Engine-->>Client: ProcessInstance
+        Note over Client,Instance: Orchestrated Process Start
+        Client->>Orchestrator: start(graph, runtimeContext)
+        Orchestrator->>Instance: create new instance
+        Orchestrator->>Instance: save initial state
+
+        Orchestrator->>CtxAssembler: assemble(instance, tenantId)
+        CtxAssembler-->>Orchestrator: RuntimeContext
+
+        Orchestrator->>EligEval: evaluateEntryNodes(graph, context)
+        EligEval->>NodeEval: evaluate(entryNode, context)
+        NodeEval->>ExprEval: evaluateAllAsBoolean(preconditions)
+        NodeEval->>PolicyEval: evaluateAll(policyGates)
+        NodeEval-->>EligEval: NodeEvaluation
+        EligEval-->>Orchestrator: EligibleSpace
+
+        Orchestrator->>NavDecider: select(eligibleSpace, instance, graph)
+        NavDecider-->>Orchestrator: NavigationDecision(PROCEED)
+
+        Orchestrator->>Governor: enforce(instance, node, context)
+        Governor->>Governor: checkIdempotency()
+        Governor->>Governor: checkAuthorization()
+        Governor->>Governor: checkPolicyGate()
+        Governor-->>Orchestrator: GovernanceResult(approved)
+
+        Orchestrator->>Engine: executeNode(instance, graph, node)
+        Engine->>ActionHandler: execute(actionContext)
+        ActionHandler-->>Engine: ActionResult(success)
+        Engine-->>Orchestrator: NodeExecutionResult
+
+        Orchestrator->>Tracer: record(decisionTrace)
+        Orchestrator->>EventPub: publish(process.started)
+        Orchestrator-->>Client: ProcessInstance
     end
 
     rect rgb(227, 242, 253)
-        Note over Client,Instance: Node Execution
-        Client->>Engine: executeNode(instance, graph, node)
+        Note over Client,Instance: Orchestration Loop (Event-Driven)
+        Client->>Orchestrator: signal(OrchestrationEvent)
+        Orchestrator->>Orchestrator: queue event
 
-        Engine->>NodeEval: evaluate(node, context)
-        NodeEval->>ExprEval: evaluateAllAsBoolean(preconditions)
-        ExprEval-->>NodeEval: boolean
+        loop Event Loop
+            Orchestrator->>Orchestrator: poll event from queue
 
-        alt Preconditions failed
-            NodeEval-->>Engine: NodeEvaluation(blocked)
-            Engine-->>Client: NodeExecutionResult(skipped)
-        end
+            Orchestrator->>CtxAssembler: assemble(instance, tenantId)
+            CtxAssembler->>Instance: getContext()
+            CtxAssembler-->>Orchestrator: RuntimeContext (rebuilt)
 
-        NodeEval->>PolicyEval: evaluateAll(policyGates)
-        PolicyEval-->>NodeEval: List~PolicyResult~
+            Orchestrator->>EligEval: evaluate(instance, graph, context)
 
-        alt Policy blocked
-            NodeEval-->>Engine: NodeEvaluation(blocked by policy)
-            Engine-->>Client: NodeExecutionResult(skipped)
-        end
+            rect rgb(240, 248, 255)
+                Note over EligEval,EdgeEval: Build Eligible Space
+                EligEval->>NodeEval: evaluate each candidate node
+                NodeEval->>ExprEval: evaluate preconditions
+                NodeEval->>PolicyEval: evaluate policy gates
+                NodeEval->>RuleEval: evaluate business rules
+                NodeEval-->>EligEval: NodeEvaluation[]
 
-        NodeEval->>RuleEval: evaluateAll(businessRules)
-        RuleEval-->>NodeEval: List~RuleResult~ + outputs
-        NodeEval-->>Engine: NodeEvaluation(available, ruleOutputs)
-
-        Engine->>Instance: startNodeExecution(nodeId)
-        Engine->>ActionHandler: execute(actionContext)
-
-        alt Action succeeded
-            ActionHandler-->>Engine: ActionResult(success, output)
-            Engine->>Instance: updateContext(output)
-            Engine->>Instance: completeNodeExecution(nodeId)
-            Engine->>CompHandler: resetRetryCount(node)
-            Engine->>EventPub: publish(node.executed)
-            Engine-->>Client: NodeExecutionResult(success)
-        else Action failed
-            ActionHandler-->>Engine: ActionResult(failed, error)
-            Engine->>CompHandler: determineCompensation(...)
-            CompHandler-->>Engine: CompensationAction
-            alt Retry
-                Engine->>Instance: restart node execution
-            else Escalate/Rollback/Fail
-                Engine->>Instance: failNodeExecution(nodeId)
+                EligEval->>EdgeEval: evaluate outbound edges
+                EdgeEval->>ExprEval: evaluate guard conditions
+                EdgeEval-->>EligEval: EdgeEvaluation[]
+                EligEval-->>Orchestrator: EligibleSpace
             end
-            Engine-->>Client: NodeExecutionResult(failed, compensation)
+
+            Orchestrator->>NavDecider: select(eligibleSpace, instance, graph)
+
+            alt Eligible actions available
+                NavDecider->>NavDecider: check exclusive edges
+                NavDecider->>NavDecider: apply priority ordering
+                NavDecider->>NavDecider: check concurrency semantics
+                NavDecider->>NavDecider: record alternatives considered
+                NavDecider-->>Orchestrator: NavigationDecision(PROCEED, selectedNodes)
+
+                Orchestrator->>Governor: enforce(instance, node, context)
+
+                alt Governance approved
+                    Governor-->>Orchestrator: GovernanceResult(approved)
+                    Orchestrator->>Engine: executeNode(instance, graph, node)
+                    Engine->>ActionHandler: execute(actionContext)
+                    ActionHandler-->>Engine: ActionResult
+                    Engine-->>Orchestrator: NodeExecutionResult
+                    Orchestrator->>Instance: updateContext(result)
+                    Orchestrator->>Tracer: record(decisionTrace: EXECUTION)
+                else Governance rejected
+                    Governor-->>Orchestrator: GovernanceResult(rejected, reason)
+                    Orchestrator->>Tracer: record(decisionTrace: BLOCKED)
+                end
+
+            else No eligible actions
+                NavDecider-->>Orchestrator: NavigationDecision(WAIT)
+                Orchestrator->>Tracer: record(decisionTrace: WAIT)
+            end
         end
     end
 
     rect rgb(255, 243, 224)
-        Note over Client,Instance: Edge Traversal
-        Client->>Engine: evaluateAndTraverseEdges(instance, graph, node)
-        Engine->>Engine: getOutboundEdges(nodeId)
+        Note over Client,Instance: Resume After Suspend
+        Client->>Orchestrator: resume(instanceId)
+        Orchestrator->>Instance: resume()
 
-        loop For each outbound edge
-            Engine->>EdgeEval: evaluate(edge, context, ruleOutputs, policyOutcomes)
-            EdgeEval->>ExprEval: evaluateAllAsBoolean(contextConditions)
-            EdgeEval->>EdgeEval: check ruleOutcomeConditions
-            EdgeEval->>EdgeEval: check policyOutcomeConditions
-            EdgeEval->>EdgeEval: check eventConditions
-            EdgeEval-->>Engine: EdgeEvaluation
+        Orchestrator->>CtxAssembler: assemble(instance, tenantId)
+        CtxAssembler-->>Orchestrator: RuntimeContext
+
+        Orchestrator->>EligEval: evaluate(instance, graph, context)
+        EligEval-->>Orchestrator: EligibleSpace
+
+        Orchestrator->>NavDecider: select(eligibleSpace, instance, graph)
+        NavDecider-->>Orchestrator: NavigationDecision
+
+        alt PROCEED
+            Orchestrator->>Governor: enforce(instance, node, context)
+            Governor-->>Orchestrator: GovernanceResult
+            Orchestrator->>Engine: executeNode(...)
+            Orchestrator->>Tracer: record(decisionTrace)
+        else WAIT
+            Orchestrator->>Tracer: record(decisionTrace: WAIT)
         end
 
-        Engine->>EdgeEval: selectEdgesToTraverse(evaluations)
-        EdgeEval-->>Engine: List~Edge~ (sorted by priority)
-
-        Engine->>Coordinator: categorizeEdges(edges)
-        Coordinator-->>Engine: ExecutionPlan(sequential, parallel)
-
-        alt Has parallel edges
-            Engine->>Coordinator: initiateParallelExecution(instance, parallelEdges)
-            Coordinator-->>Engine: List~ParallelBranch~
-        end
-
-        Engine-->>Client: List~EdgeTraversal~
+        Orchestrator-->>Client: OrchestrationStatus
     end
 
     rect rgb(252, 228, 236)
-        Note over Client,Instance: Event Handling
-        Client->>Engine: handleEvent(event, instances, graph)
+        Note over Client,Instance: External Event Handling
+        Note right of Client: Events: DataChange, Approval,<br/>NodeCompleted, TimerExpired, etc.
 
-        loop For each running instance
-            Engine->>Instance: context.withEvent(receivedEvent)
-            Engine->>Engine: getNodesSubscribedToEvent(eventType)
+        Client->>Orchestrator: signal(OrchestrationEvent.DataChange)
 
-            loop For each subscribed node
-                Engine->>NodeEval: evaluate(node, context)
-                alt Node now available
-                    Engine->>Instance: startNodeExecution(nodeId)
-                end
-            end
+        Orchestrator->>Orchestrator: correlate event to instances
 
-            Engine->>Engine: getEdgesReevaluatedByEvent(eventType)
-            loop For each pending edge
-                Engine->>EdgeEval: evaluate(edge, context)
-                alt Edge now traversable
-                    Engine->>Instance: activatePendingEdge(edgeId)
-                end
+        loop For each affected instance
+            Orchestrator->>CtxAssembler: addEvent(context, event)
+            CtxAssembler-->>Orchestrator: RuntimeContext (with event)
+
+            Orchestrator->>EligEval: reevaluateAfterEvent(instance, graph, context, eventType)
+
+            Note over EligEval: Full reevaluation -<br/>context has changed
+
+            EligEval->>NodeEval: evaluate nodes with event conditions
+            EligEval->>EdgeEval: evaluate edges with event conditions
+            EligEval-->>Orchestrator: EligibleSpace (new)
+
+            Orchestrator->>NavDecider: select(eligibleSpace, ...)
+            NavDecider-->>Orchestrator: NavigationDecision
+
+            alt New actions available
+                Orchestrator->>Governor: enforce(...)
+                Orchestrator->>Engine: executeNode(...)
+                Orchestrator->>Tracer: record(decisionTrace)
             end
         end
-
-        Engine-->>Client: List~ProcessInstance~ (affected)
     end
 
     rect rgb(243, 229, 245)
         Note over Client,Instance: Process Completion
-        Engine->>Engine: check if terminal node reached
-        Engine->>Engine: check if no active nodes
-        Engine->>Instance: complete()
-        Engine->>EventPub: publish(process.completed)
-        Engine->>Coordinator: cleanupInstance(instance)
-        Engine->>CompHandler: cleanupInstance(instance)
+        Orchestrator->>Orchestrator: check if terminal node reached
+        Orchestrator->>Orchestrator: check if no active nodes
+
+        Orchestrator->>Instance: complete()
+        Orchestrator->>Tracer: record(decisionTrace: type=NAVIGATION, outcome=COMPLETED)
+        Orchestrator->>EventPub: publish(process.completed)
+        Orchestrator-->>Client: OrchestrationStatus(isComplete=true)
+    end
+
+    rect rgb(255, 245, 238)
+        Note over Client,Instance: Decision Trace Structure
+        Note right of Tracer: DecisionTrace contains:<br/>- id, timestamp, instanceId<br/>- type: NAVIGATION|EXECUTION|WAIT|BLOCKED<br/>- ContextSnapshot (full context)<br/>- EvaluationSnapshot (nodes/edges evaluated)<br/>- DecisionSnapshot (selection + alternatives)<br/>- GovernanceSnapshot (all checks)<br/>- OutcomeSnapshot (result)
     end
