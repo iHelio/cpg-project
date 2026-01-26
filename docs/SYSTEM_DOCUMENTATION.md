@@ -8,9 +8,10 @@
 5. [Process Execution Engine](#process-execution-engine)
 6. [Process Orchestrator](#process-orchestrator)
 7. [Infrastructure Adapters](#infrastructure-adapters)
-8. [Example: Employee Onboarding](#example-employee-onboarding)
-9. [Build and Test](#build-and-test)
-10. [Next Steps](#next-steps)
+8. [REST API Reference](#rest-api-reference)
+9. [Example: Employee Onboarding](#example-employee-onboarding)
+10. [Build and Test](#build-and-test)
+11. [Next Steps](#next-steps)
 
 ---
 
@@ -1058,6 +1059,224 @@ public interface DecisionTraceRepository {
 ```
 
 **Implementation:** `InMemoryDecisionTraceRepository` - ConcurrentHashMap-based for development.
+
+---
+
+## REST API Reference
+
+The CPG system exposes REST APIs for process management and orchestration.
+
+### Base URL
+
+```
+http://localhost:8080/api/v1
+```
+
+### Process Graph API
+
+Manage process graph definitions.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| GET | `/process-graphs` | List all process graphs |
+| GET | `/process-graphs/{id}` | Get process graph by ID |
+| GET | `/process-graphs/{id}/versions` | List all versions |
+
+### Process Instance API
+
+Manage process instances with manual node execution control.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/process-instances` | Start a new process instance |
+| GET | `/process-instances` | List process instances |
+| GET | `/process-instances/{id}` | Get instance by ID |
+| POST | `/process-instances/{id}/suspend` | Suspend a running instance |
+| POST | `/process-instances/{id}/resume` | Resume a suspended instance |
+| POST | `/process-instances/{id}/cancel` | Cancel an instance |
+| GET | `/process-instances/{id}/available-nodes` | Get available nodes for execution |
+| POST | `/process-instances/{id}/execute` | Execute a specific node |
+
+#### Start Process Instance
+
+```bash
+curl -X POST http://localhost:8080/api/v1/process-instances \
+  -H "Content-Type: application/json" \
+  -d '{
+    "processGraphId": "employee-onboarding",
+    "correlationId": "EMP-2026-001",
+    "clientContext": {
+      "tenantId": "acme-corp",
+      "region": "US"
+    },
+    "domainContext": {
+      "candidateId": "CAND-12345",
+      "candidateName": "John Smith",
+      "offer": { "status": "ACCEPTED", "signed": true }
+    }
+  }'
+```
+
+#### Execute Node
+
+```bash
+curl -X POST http://localhost:8080/api/v1/process-instances/{id}/execute \
+  -H "Content-Type: application/json" \
+  -d '{"nodeId": "offer-accepted"}'
+```
+
+### Orchestration API
+
+The **Orchestration API** provides autonomous process execution where the orchestrator takes full control, automatically navigating the graph and executing eligible nodes based on policy enforcement.
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/orchestration/start` | Start orchestrated process |
+| GET | `/orchestration/{instanceId}` | Get orchestration status |
+| POST | `/orchestration/{instanceId}/signal` | Signal event to orchestrator |
+| POST | `/orchestration/{instanceId}/suspend` | Suspend orchestration |
+| POST | `/orchestration/{instanceId}/resume` | Resume orchestration |
+| POST | `/orchestration/{instanceId}/cancel` | Cancel orchestration |
+
+#### Start Orchestration
+
+Starts a process with the orchestrator in control. The orchestrator automatically evaluates preconditions, navigates to eligible entry nodes, and executes them.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/start \
+  -H "Content-Type: application/json" \
+  -d '{
+    "processGraphId": "employee-onboarding",
+    "correlationId": "EMP-ORCH-001",
+    "clientContext": {
+      "tenantId": "acme-corp",
+      "backgroundCheckProvider": "checkr",
+      "equipmentBudget": 5000
+    },
+    "domainContext": {
+      "candidateId": "CAND-99999",
+      "candidateName": "Alice Johnson",
+      "offer": { "status": "ACCEPTED", "signed": true },
+      "candidate": { "consentGiven": true, "disclosuresSigned": true },
+      "validation": { "status": "PASSED" }
+    }
+  }'
+```
+
+**Response:**
+
+```json
+{
+  "instanceId": "87e5a6a7-ec80-418a-a16c-1f01b7203808",
+  "processGraphId": "employee-onboarding",
+  "status": "RUNNING",
+  "isActive": true,
+  "isComplete": false,
+  "lastDecision": {
+    "type": "PROCEED",
+    "selectedNodes": ["offer-accepted"],
+    "selectionReason": "Selected single eligible action: offer-accepted",
+    "alternativesConsidered": 1,
+    "decidedAt": "2026-01-26T01:41:22.268Z"
+  },
+  "lastTrace": {
+    "traceId": "85fa893c-3a3d-498e-94f2-97304c28647e",
+    "type": "EXECUTION",
+    "nodesEvaluated": 1,
+    "edgesEvaluated": 0,
+    "governanceApproved": true,
+    "outcomeStatus": "EXECUTED"
+  },
+  "nodeExecutions": [
+    {
+      "nodeId": "offer-accepted",
+      "status": "COMPLETED",
+      "result": {"actionType": "SYSTEM_INVOCATION", "executedBy": "default-handler"}
+    }
+  ]
+}
+```
+
+#### Get Orchestration Status
+
+```bash
+curl http://localhost:8080/api/v1/orchestration/{instanceId}
+```
+
+Returns the current orchestration status including:
+- Process instance status
+- Last navigation decision
+- Last decision trace
+- All node executions
+
+#### Signal Event
+
+Signal events to trigger orchestrator reevaluation.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/signal \
+  -H "Content-Type: application/json" \
+  -d '{
+    "eventType": "NODE_COMPLETED",
+    "nodeId": "background-check",
+    "payload": {
+      "result": "PASSED"
+    }
+  }'
+```
+
+**Supported Event Types:**
+
+| Event Type | Description | Required Fields |
+|------------|-------------|-----------------|
+| `NODE_COMPLETED` | Node execution completed | `nodeId`, `payload` |
+| `NODE_FAILED` | Node execution failed | `nodeId`, `payload.errorType`, `payload.errorMessage` |
+| `APPROVAL` | Human approval received | `nodeId`, `payload.approver` |
+| `REJECTION` | Human rejection received | `nodeId`, `payload.approver`, `payload.reason` |
+| `DATA_CHANGE` | External data changed | `payload.entityType`, `payload.entityId`, `payload.data` |
+
+#### Suspend Orchestration
+
+Pauses the orchestration. The orchestrator will stop processing events.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/suspend
+```
+
+#### Resume Orchestration
+
+Resumes a suspended orchestration. The orchestrator will reevaluate the eligible space and continue execution.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/resume
+```
+
+**Note:** Resuming triggers a full reevaluation cycle, which may result in automatic node execution if eligible actions are available.
+
+#### Cancel Orchestration
+
+Cancels the orchestration and marks the process instance as failed.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/cancel
+```
+
+### Health Check
+
+```bash
+curl http://localhost:8080/actuator/health
+```
+
+### Response Codes
+
+| Code | Description |
+|------|-------------|
+| 200 | Success |
+| 201 | Created (new instance) |
+| 400 | Bad request (validation error) |
+| 404 | Not found (instance or graph) |
+| 409 | Conflict (invalid state transition) |
+| 500 | Internal server error |
 
 ---
 
