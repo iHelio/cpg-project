@@ -152,6 +152,183 @@ classDiagram
         +processCompleted(...)$ ProcessEvent
     }
 
+    %% =========================================
+    %% ORCHESTRATION DOMAIN
+    %% =========================================
+
+    class RuntimeContext {
+        +Map clientContext
+        +Map domainContext
+        +Map entityState
+        +OperationalContext operationalContext
+        +List~ReceivedEvent~ receivedEvents
+        +Instant assembledAt
+        +toFeelContext() Map
+        +getValue(String) Object
+        +fromExecutionContext(ExecutionContext)$ RuntimeContext
+        +empty()$ RuntimeContext
+    }
+
+    class EligibleSpace {
+        +List~NodeEvaluation~ eligibleNodes
+        +List~EdgeEvaluation~ traversableEdges
+        +List~CandidateAction~ candidateActions
+        +Instant evaluatedAt
+        +isEmpty() boolean
+        +hasExclusiveAction() boolean
+        +getHighestPriority() Optional~CandidateAction~
+        +empty()$ EligibleSpace
+    }
+
+    class CandidateAction {
+        +NodeEvaluation nodeEvaluation
+        +EdgeEvaluation edgeEvaluation
+        +int priority
+        +boolean isExclusive
+        +forEntryNode(...)$ CandidateAction
+        +forEdgeTraversal(...)$ CandidateAction
+    }
+
+    class NavigationDecision {
+        +DecisionType type
+        +List~NodeSelection~ selectedNodes
+        +List~AlternativeConsidered~ alternatives
+        +SelectionCriteria selectionCriteria
+        +String selectionReason
+        +EligibleSpace eligibleSpace
+        +Instant decidedAt
+        +proceed(...)$ NavigationDecision
+        +wait(...)$ NavigationDecision
+        +blocked(...)$ NavigationDecision
+        +complete(...)$ NavigationDecision
+    }
+
+    class DecisionTrace {
+        +DecisionTraceId id
+        +Instant timestamp
+        +ProcessInstanceId instanceId
+        +DecisionType type
+        +ContextSnapshot context
+        +EvaluationSnapshot evaluation
+        +DecisionSnapshot decision
+        +GovernanceSnapshot governance
+        +OutcomeSnapshot outcome
+    }
+
+    class GovernanceResult {
+        +boolean approved
+        +IdempotencyResult idempotencyResult
+        +AuthorizationResult authorizationResult
+        +PolicyGateResult policyGateResult
+        +String rejectionReason
+        +approved(...)$ GovernanceResult
+        +rejected(...)$ GovernanceResult
+    }
+
+    class OrchestrationEvent {
+        <<sealed interface>>
+        +eventId() String
+        +timestamp() Instant
+        +correlationId() String
+        +eventType() String
+    }
+
+    class DataChange {
+        +String entityType
+        +String entityId
+        +ChangeType changeType
+        +List~String~ changedFields
+        +Map payload
+    }
+
+    class Approval {
+        +ProcessInstanceId instanceId
+        +NodeId nodeId
+        +String approver
+        +ApprovalDecision decision
+        +String comments
+    }
+
+    class NodeCompleted {
+        +ProcessInstanceId instanceId
+        +NodeId nodeId
+        +Object result
+        +long durationMs
+    }
+
+    class NodeFailed {
+        +ProcessInstanceId instanceId
+        +NodeId nodeId
+        +String errorType
+        +String errorMessage
+        +boolean retryable
+    }
+
+    class TimerExpired {
+        +ProcessInstanceId instanceId
+        +String timerId
+        +TimerType timerType
+        +Instant originalDeadline
+    }
+
+    %% Orchestration Enums
+    class DecisionType {
+        <<enumeration>>
+        PROCEED
+        WAIT
+        BLOCKED
+        COMPLETE
+    }
+
+    class SelectionCriteria {
+        <<enumeration>>
+        SINGLE_OPTION
+        EXCLUSIVE
+        HIGHEST_PRIORITY
+        PARALLEL
+        NO_OPTIONS
+    }
+
+    class OutcomeStatus {
+        <<enumeration>>
+        EXECUTED
+        WAITING
+        BLOCKED
+        FAILED
+        COMPLETED
+    }
+
+    %% Orchestration Ports
+    class ProcessOrchestrator {
+        <<interface>>
+        +start(ProcessGraph, RuntimeContext) ProcessInstance
+        +signal(OrchestrationEvent) void
+        +suspend(ProcessInstanceId) void
+        +resume(ProcessInstanceId) void
+        +cancel(ProcessInstanceId) void
+        +getStatus(ProcessInstanceId) OrchestrationStatus
+    }
+
+    class ExecutionGovernor {
+        <<interface>>
+        +checkIdempotency(...) IdempotencyResult
+        +checkAuthorization(...) AuthorizationResult
+        +checkPolicyGate(...) PolicyGateResult
+        +enforce(...) GovernanceResult
+    }
+
+    class DecisionTracer {
+        <<interface>>
+        +record(DecisionTrace) void
+        +findById(DecisionTraceId) Optional~DecisionTrace~
+        +findByInstanceId(ProcessInstanceId) List~DecisionTrace~
+    }
+
+    class NodeSelector {
+        <<interface>>
+        +select(EligibleSpace, ProcessInstance, ProcessGraph) NavigationDecision
+    }
+
     %% Enums
     class ProcessGraphStatus {
         <<enumeration>>
@@ -230,3 +407,27 @@ classDiagram
     ProcessInstance --> ProcessInstanceStatus
 
     ExecutionContext "1" *-- "0..*" ProcessEvent : eventHistory
+
+    %% Orchestration Relationships
+    RuntimeContext --> ExecutionContext : converts from
+    EligibleSpace "1" *-- "0..*" CandidateAction
+    NavigationDecision --> DecisionType
+    NavigationDecision --> SelectionCriteria
+    NavigationDecision --> EligibleSpace
+    DecisionTrace --> GovernanceResult : governance
+    DecisionTrace --> DecisionType
+    GovernanceResult --> ProcessInstance
+
+    OrchestrationEvent <|-- DataChange
+    OrchestrationEvent <|-- Approval
+    OrchestrationEvent <|-- NodeCompleted
+    OrchestrationEvent <|-- NodeFailed
+    OrchestrationEvent <|-- TimerExpired
+
+    ProcessOrchestrator --> ProcessInstance : manages
+    ProcessOrchestrator --> OrchestrationEvent : receives
+    ProcessOrchestrator --> DecisionTrace : produces
+    ExecutionGovernor --> GovernanceResult : returns
+    DecisionTracer --> DecisionTrace : persists
+    NodeSelector --> NavigationDecision : returns
+    NodeSelector --> EligibleSpace : selects from
