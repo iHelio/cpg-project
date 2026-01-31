@@ -88,3 +88,6 @@ bom.xml
 # Coverage reports
 jacoco.exec
 coverage/
+
+# Claude Code
+.claude/
