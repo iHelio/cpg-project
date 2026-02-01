@@ -6,6 +6,12 @@ spring:
   threads:
     virtual:
       enabled: true
+  ai:
+    mcp:
+      server:
+        name: cpg-orchestration
+        version: 0.0.1
+        type: SYNC
 
 server:
   port: 8080
