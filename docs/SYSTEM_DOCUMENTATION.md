@@ -9,9 +9,10 @@
 6. [Process Orchestrator](#process-orchestrator)
 7. [Infrastructure Adapters](#infrastructure-adapters)
 8. [REST API Reference](#rest-api-reference)
-9. [Example: Employee Onboarding](#example-employee-onboarding)
-10. [Build and Test](#build-and-test)
-11. [Next Steps](#next-steps)
+9. [MCP Server API Reference](#mcp-server-api-reference)
+10. [Example: Employee Onboarding](#example-employee-onboarding)
+11. [Build and Test](#build-and-test)
+12. [Next Steps](#next-steps)
 
 ---
 
@@ -43,6 +44,7 @@ The Contextualized Process Graph (CPG) is an enterprise-grade process execution 
 | Build | Maven 3.9+ |
 | Expression Engine | KIE FEEL (Drools) 9.44 |
 | Decision Engine | KIE DMN (Drools) 9.44 |
+| MCP Server | Spring AI MCP Server (WebMVC) 1.1.2 |
 | Testing | JUnit 5, Mockito, Testcontainers |
 
 ---
@@ -63,9 +65,9 @@ The system follows the Hexagonal (Ports & Adapters) architecture pattern:
          │                 │                       │
 ┌────────┼─────────────────┼───────────────────────┼──────────────┐
 │        ▼                 ▼                       │  interfaces  │
-│   ┌─────────────────────────────────────────┐   │              │
-│   │    REST Controllers │ Event Listeners   │   │              │
-│   └────────────────────┬────────────────────┘   │              │
+│   ┌──────────────────────────────────────────────────────┐   │  │
+│   │    REST Controllers │ MCP Server │ Event Listeners   │   │  │
+│   └─────────────────────────┬────────────────────────────┘   │  │
 └────────────────────────┼────────────────────────┼──────────────┘
                          │                        │
 ┌────────────────────────┼────────────────────────┼──────────────┐
@@ -135,7 +137,7 @@ The system follows the Hexagonal (Ports & Adapters) architecture pattern:
 | **Application/Orchestration** | `com.ihelio.cpg.application.orchestration` | Policy-enforcing navigation engine |
 | **Infrastructure** | `com.ihelio.cpg.infrastructure` | External adapters, persistence, messaging |
 | **Infrastructure/Orchestration** | `com.ihelio.cpg.infrastructure.orchestration` | Orchestrator implementations |
-| **Interfaces** | `com.ihelio.cpg.interfaces` | REST controllers, CLI, event listeners |
+| **Interfaces** | `com.ihelio.cpg.interfaces` | REST controllers, MCP server (tools/resources/prompts), event listeners |
 
 ---
 
@@ -210,13 +212,18 @@ cpg/
 │   │   │   │       ├── OrchestratorConfigProperties.java
 │   │   │   │       └── OrchestratorEventSubscriber.java
 │   │   │   └── interfaces/
-│   │   │       └── rest/                     # REST controllers
+│   │   │       ├── mcp/                     # MCP server
+│   │   │       │   ├── OrchestrationTools.java     # 11 MCP tools
+│   │   │       │   ├── OrchestrationResources.java # 5 MCP resources
+│   │   │       │   └── OrchestrationPrompts.java   # 3 MCP prompts
+│   │   │       └── rest/                    # REST controllers
 │   │   └── resources/
 │   │       └── dmn/                          # DMN decision tables
 │   └── test/
 │       └── java/com/ihelio/cpg/
 │           ├── domain/engine/                # Engine unit tests
 │           ├── application/orchestration/    # Orchestration unit tests
+│           ├── interfaces/mcp/              # MCP server tests
 │           ├── infrastructure/orchestration/ # Orchestrator tests
 │           └── integration/                  # Integration tests
 ```
@@ -1280,6 +1287,70 @@ curl http://localhost:8080/actuator/health
 
 ---
 
+## MCP Server API Reference
+
+The CPG system exposes a [Model Context Protocol (MCP)](https://modelcontextprotocol.io/) server that allows AI clients to discover and interact with orchestration capabilities. The server uses Server-Sent Events (SSE) transport over HTTP.
+
+### Connection
+
+```
+SSE Endpoint: http://localhost:8080/sse
+```
+
+### Configuration
+
+```yaml
+spring:
+  ai:
+    mcp:
+      server:
+        name: cpg-orchestration
+        version: 0.0.1
+        type: SYNC
+```
+
+### MCP Tools (11)
+
+Tools are callable functions that AI clients can invoke to interact with the orchestration engine.
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `list_process_graphs` | List all published process graphs | — |
+| `get_process_graph` | Get a process graph by ID with full structure including nodes and edges | `graphId` (required) |
+| `validate_process_graph` | Validate a process graph's structural integrity and return any errors | `graphId` (required) |
+| `start_orchestration` | Start autonomous orchestration of a process graph | `processGraphId` (required), `clientContext` (JSON), `domainContext` (JSON) |
+| `get_orchestration_status` | Get current orchestration status for a process instance | `instanceId` (required) |
+| `signal_event` | Signal an event to trigger orchestrator reevaluation | `instanceId` (required), `eventType` (required), `nodeId`, `payload` (JSON) |
+| `suspend_orchestration` | Pause orchestration of a running process instance | `instanceId` (required) |
+| `resume_orchestration` | Resume a suspended orchestration | `instanceId` (required) |
+| `cancel_orchestration` | Cancel orchestration of a process instance | `instanceId` (required) |
+| `list_process_instances` | List running process instances with optional filters | `processGraphId`, `status`, `correlationId` |
+| `get_available_nodes` | Get nodes eligible for execution in a process instance | `instanceId` (required) |
+
+### MCP Resources (5)
+
+Resources provide read-only access to orchestration data via URI-based lookups.
+
+| URI | Name | Description |
+|-----|------|-------------|
+| `graph://published` | Published Process Graphs | All published process graphs (summary list) |
+| `graph://{graphId}` | Process Graph | Full process graph definition including nodes and edges |
+| `instance://{instanceId}` | Process Instance | Process instance state and node executions |
+| `instance://{instanceId}/context` | Execution Context | Execution context including client, domain, and accumulated state |
+| `instance://{instanceId}/events` | Event History | Event history for a process instance |
+
+### MCP Prompts (3)
+
+Prompts are pre-built templates that help AI clients perform common analysis tasks.
+
+| Prompt | Description | Parameters |
+|--------|-------------|------------|
+| `analyze_process_graph` | Analyze a process graph's structure, nodes, edges, entry/terminal points, and potential issues | `graphId` (required) |
+| `troubleshoot_instance` | Diagnose a stuck or failed process instance with context, status, and event history | `instanceId` (required) |
+| `orchestration_summary` | Summarize the current orchestration state, decisions made, and next steps | `instanceId` (required) |
+
+---
+
 ## Example: Employee Onboarding
 
 ### Process Overview
@@ -1421,9 +1492,10 @@ The project requires 80% line coverage (enforced by JaCoCo):
 | `infrastructure.orchestration` | 23 tests (ExecutionGovernor, DecisionTracer, Integration) |
 | `infrastructure.feel` | Expression evaluation tests |
 | `interfaces.rest` | REST controller tests |
+| `interfaces.mcp` | 38 tests (OrchestrationTools, Resources, Prompts) |
 | `integration` | End-to-end onboarding test |
 
-**Total: 200+ tests**
+**Total: 250 tests**
 
 ---
 
@@ -1442,6 +1514,7 @@ The project requires 80% line coverage (enforced by JaCoCo):
 | **Governance Layer** | **Complete** |
 | **Decision Tracing** | **Complete** |
 | REST API Layer | Complete |
+| **MCP Server API** | **Complete** |
 
 ### Phase 1: Production-Ready Persistence (High Priority)
 

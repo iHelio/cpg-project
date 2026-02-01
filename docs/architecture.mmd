@@ -8,6 +8,7 @@ flowchart TB
 
     subgraph Interfaces["interfaces"]
         REST["REST Controllers"]
+        McpServer["MCP Server<br/>(Tools, Resources, Prompts)"]
         EventListener["Event Listeners"]
     end
 
@@ -105,11 +106,14 @@ flowchart TB
 
     %% External connections
     UI --> REST
+    UI --> McpServer
     ExtEvents --> EventListener
     ExtSystems -.-> EventListener
 
     %% Interface to Application
     REST --> UseCases
+    McpServer --> UseCases
+    McpServer --> InstOrch
     EventListener --> EventHandler
 
     %% Application to Domain
@@ -183,5 +187,5 @@ flowchart TB
     class PEE,NE,EE,EC,CH,PG,Node,Edge,Feel,PI,ExCtx,ExprEval,PolicyEval,RuleEval,ActionH,EventPub,GraphRepo,InstRepo,PEvent,Correlator,EventHandler,RtCtx,EligSpace,NavDecision,DecTrace,GovResult,OrchEvent,ProcOrch,ExecGov,DecTracer,NodeSel domain
     class KieFeel,DmnSvc,DmnPolicy,DmnRule,MemGraph,MemInst,MemEvent,MemTrace,DefProcOrch,DefExecGov,DefDecTracer,OrchConfig infra
     class Handlers,UseCases,GraphBuilders,InstOrch,CtxAsm,EligEval,NavDec app
-    class REST,EventListener iface
+    class REST,McpServer,EventListener iface
     class UI,ExtEvents,ExtSystems external
