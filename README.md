@@ -20,8 +20,34 @@ An enterprise-grade, action-oriented process execution engine built with Java 21
 # Run all tests (250 tests)
 ./mvnw test
 
-# Start the application
+# Start the application (port 8080)
 ./mvnw spring-boot:run
+
+# Stop the application
+# Press Ctrl+C in the terminal, or:
+kill $(lsof -ti:8080)
+
+# Check if the application is running
+curl -s http://localhost:8080/actuator/health | python3 -m json.tool
+```
+
+## Common Commands
+
+```bash
+# Security scan (OWASP dependency check)
+./mvnw dependency-check:check
+
+# License audit
+./mvnw license:check
+
+# Linting (Google Java Style)
+./mvnw checkstyle:check
+
+# Generate SBOM
+./mvnw cyclonedx:makeAggregateBom
+
+# Test MCP server SSE endpoint
+curl -s -N http://localhost:8080/sse
 ```
 
 ## Documentation
