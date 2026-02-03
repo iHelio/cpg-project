@@ -12,9 +12,13 @@ spring:
         name: cpg-orchestration
         version: 0.0.1
         type: SYNC
+        keep-alive-interval: 30s
 
 server:
   port: 8080
+  servlet:
+    async:
+      timeout: 900000
 
 management:
   endpoints:

@@ -31,7 +31,7 @@ import org.springframework.web.bind.annotation.RestControllerAdvice;
  *
  * <p>Maps domain exceptions to appropriate HTTP responses with standardized error format.
  */
-@RestControllerAdvice
+@RestControllerAdvice(basePackages = "com.ihelio.cpg.interfaces.rest")
 public class GlobalExceptionHandler {
 
     /**
