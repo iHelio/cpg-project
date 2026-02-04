@@ -16,6 +16,7 @@
 
 package com.ihelio.cpg.application.service;
 
+import com.ihelio.cpg.application.orchestration.EligibilityEvaluator;
 import com.ihelio.cpg.domain.engine.EdgeTraversal;
 import com.ihelio.cpg.domain.engine.NodeEvaluation;
 import com.ihelio.cpg.domain.engine.NodeEvaluator;
@@ -46,16 +47,19 @@ public class ProcessExecutionService {
     private final ProcessGraphRepository processGraphRepository;
     private final ProcessExecutionEngine processExecutionEngine;
     private final NodeEvaluator nodeEvaluator;
+    private final EligibilityEvaluator eligibilityEvaluator;
 
     public ProcessExecutionService(
             ProcessInstanceRepository processInstanceRepository,
             ProcessGraphRepository processGraphRepository,
             ProcessExecutionEngine processExecutionEngine,
-            NodeEvaluator nodeEvaluator) {
+            NodeEvaluator nodeEvaluator,
+            EligibilityEvaluator eligibilityEvaluator) {
         this.processInstanceRepository = processInstanceRepository;
         this.processGraphRepository = processGraphRepository;
         this.processExecutionEngine = processExecutionEngine;
         this.nodeEvaluator = nodeEvaluator;
+        this.eligibilityEvaluator = eligibilityEvaluator;
     }
 
     /**
@@ -105,7 +109,9 @@ public class ProcessExecutionService {
         ProcessInstance instance = getInstanceOrThrow(instanceId);
         ProcessGraph graph = getGraphForInstance(instance);
 
-        return graph.nodes().stream()
+        List<Node> candidates = eligibilityEvaluator.getCandidateNodes(instance, graph);
+
+        return candidates.stream()
             .filter(node -> {
                 NodeEvaluation evaluation = nodeEvaluator.evaluate(node, instance.context());
                 return evaluation.available()

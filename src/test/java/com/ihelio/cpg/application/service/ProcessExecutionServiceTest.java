@@ -23,6 +23,7 @@ import static org.mockito.ArgumentMatchers.anyInt;
 import static org.mockito.Mockito.verify;
 import static org.mockito.Mockito.when;
 
+import com.ihelio.cpg.application.orchestration.EligibilityEvaluator;
 import com.ihelio.cpg.domain.action.ActionResult;
 import com.ihelio.cpg.domain.engine.EdgeTraversal;
 import com.ihelio.cpg.domain.engine.NodeEvaluation;
@@ -66,6 +67,9 @@ class ProcessExecutionServiceTest {
     @Mock
     private NodeEvaluator nodeEvaluator;
 
+    @Mock
+    private EligibilityEvaluator eligibilityEvaluator;
+
     private ProcessExecutionService service;
 
     @BeforeEach
@@ -74,7 +78,8 @@ class ProcessExecutionServiceTest {
             processInstanceRepository,
             processGraphRepository,
             processExecutionEngine,
-            nodeEvaluator
+            nodeEvaluator,
+            eligibilityEvaluator
         );
     }
 
@@ -150,11 +155,14 @@ class ProcessExecutionServiceTest {
             when(processInstanceRepository.findById(any())).thenReturn(Optional.of(instance));
             when(processGraphRepository.findByIdAndVersion(any(), anyInt()))
                 .thenReturn(Optional.of(graph));
+            when(eligibilityEvaluator.getCandidateNodes(any(), any()))
+                .thenReturn(List.of(node));
             when(nodeEvaluator.evaluate(any(), any())).thenReturn(evaluation);
 
             List<Node> result = service.getAvailableNodes("inst-123");
 
             assertThat(result).isNotNull();
+            assertThat(result).containsExactly(node);
         }
 
         @Test
@@ -166,6 +174,60 @@ class ProcessExecutionServiceTest {
                 .isInstanceOf(ProcessExecutionException.class)
                 .extracting("errorType")
                 .isEqualTo(ProcessExecutionException.ErrorType.INSTANCE_NOT_FOUND);
+        }
+
+        @Test
+        @DisplayName("should only return reachable nodes, not unreachable ones")
+        void shouldOnlyReturnReachableNodes() {
+            Node nodeA = new Node(
+                new Node.NodeId("node-a"), "Node A", null, 1,
+                Node.Preconditions.none(), List.of(), List.of(),
+                new Node.Action(Node.ActionType.SYSTEM_INVOCATION, "handler-a", "A", null),
+                Node.EventConfig.none(), Node.ExceptionRoutes.none()
+            );
+            Node nodeB = new Node(
+                new Node.NodeId("node-b"), "Node B", null, 1,
+                Node.Preconditions.none(), List.of(), List.of(),
+                new Node.Action(Node.ActionType.SYSTEM_INVOCATION, "handler-b", "B", null),
+                Node.EventConfig.none(), Node.ExceptionRoutes.none()
+            );
+            Node nodeC = new Node(
+                new Node.NodeId("node-c"), "Unreachable Node C", null, 1,
+                Node.Preconditions.none(), List.of(), List.of(),
+                new Node.Action(Node.ActionType.SYSTEM_INVOCATION, "handler-c", "C", null),
+                Node.EventConfig.none(), Node.ExceptionRoutes.none()
+            );
+            Edge edgeAB = new Edge(
+                new Edge.EdgeId("edge-a-b"), "A to B", null,
+                new Node.NodeId("node-a"), new Node.NodeId("node-b"),
+                Edge.GuardConditions.alwaysTrue(), Edge.ExecutionSemantics.sequential(),
+                Edge.Priority.defaults(), Edge.EventTriggers.none(),
+                Edge.CompensationSemantics.none()
+            );
+            ProcessGraph graph = new ProcessGraph(
+                new ProcessGraph.ProcessGraphId("test-graph"), "Test Graph", null, 1,
+                ProcessGraph.ProcessGraphStatus.PUBLISHED,
+                List.of(nodeA, nodeB, nodeC), List.of(edgeAB),
+                List.of(nodeA.id()), List.of(), null
+            );
+            ProcessInstance instance = createTestInstance(graph);
+
+            when(processInstanceRepository.findById(any())).thenReturn(Optional.of(instance));
+            when(processGraphRepository.findByIdAndVersion(any(), anyInt()))
+                .thenReturn(Optional.of(graph));
+            // EligibilityEvaluator only returns topology-reachable nodes (A and B, not C)
+            when(eligibilityEvaluator.getCandidateNodes(any(), any()))
+                .thenReturn(List.of(nodeA, nodeB));
+            when(nodeEvaluator.evaluate(any(), any()))
+                .thenAnswer(invocation -> {
+                    Node node = invocation.getArgument(0);
+                    return NodeEvaluation.available(node, List.of(), List.of(), Map.of());
+                });
+
+            List<Node> result = service.getAvailableNodes("inst-123");
+
+            assertThat(result).containsExactlyInAnyOrder(nodeA, nodeB);
+            assertThat(result).doesNotContain(nodeC);
         }
     }
 

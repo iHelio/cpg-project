@@ -202,7 +202,7 @@ public class EligibilityEvaluator {
             .build();
     }
 
-    private List<Node> getCandidateNodes(ProcessInstance instance, ProcessGraph graph) {
+    public List<Node> getCandidateNodes(ProcessInstance instance, ProcessGraph graph) {
         List<Node> candidates = new ArrayList<>();
 
         // If no active nodes, consider entry nodes
