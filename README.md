@@ -54,3 +54,21 @@ curl -s -N http://localhost:8080/sse
 
 - [System Documentation](docs/SYSTEM_DOCUMENTATION.md) — Architecture, domain model, API reference, and examples
 - [MCP Tools Guide](docs/MCP_TOOLS_GUIDE.md) — Guide for AI clients using MCP tools for workflow automation
+- [Skills Reference](docs/SKILLS_REFERENCE.md) — Claude Code skills for interactive workflow automation
+
+## Skills (Slash Commands)
+
+CPG includes Claude Code skills for simplified workflow automation:
+
+| Skill | Description |
+|-------|-------------|
+| `/orchestrate` | Interactive workflow runner - start and step through workflows |
+| `/workflow-status` | Check workflow status with actionable suggestions |
+| `/send-events` | Send one or more events to progress a workflow |
+
+Example:
+```bash
+/orchestrate employee-onboarding
+/workflow-status 87e5a6a7-ec80-418a-a16c-1f01b7203808
+/send-events 87e5a6a7 BackgroundCheckCompleted EquipmentReady
+```

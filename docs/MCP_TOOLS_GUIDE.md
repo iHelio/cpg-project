@@ -561,6 +561,20 @@ The system automatically populates event payloads based on event type. Here are 
 
 ---
 
+## Claude Code Skills
+
+For a higher-level interface, CPG provides Claude Code skills that wrap these MCP tools:
+
+| Skill | Description |
+|-------|-------------|
+| `/orchestrate` | Interactive workflow runner |
+| `/workflow-status` | Status check with suggestions |
+| `/send-events` | Batch event sender |
+
+See [Skills Reference](SKILLS_REFERENCE.md) for detailed usage.
+
+---
+
 ## License
 
 Copyright 2026 ihelio. Licensed under the Apache License 2.0.
