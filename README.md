@@ -55,6 +55,7 @@ curl -s -N http://localhost:8080/sse
 - [System Documentation](docs/SYSTEM_DOCUMENTATION.md) — Architecture, domain model, API reference, and examples
 - [MCP Tools Guide](docs/MCP_TOOLS_GUIDE.md) — Guide for AI clients using MCP tools for workflow automation
 - [Skills Reference](docs/SKILLS_REFERENCE.md) — Claude Code skills for interactive workflow automation
+- [Events Reference](docs/EVENTS_REFERENCE.md) — Complete event catalog with payloads and flow diagrams
 
 ## Skills (Slash Commands)
 
