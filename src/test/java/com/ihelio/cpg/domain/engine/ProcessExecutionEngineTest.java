@@ -71,7 +71,7 @@ class ProcessExecutionEngineTest {
             executionCoordinator,
             compensationHandler,
             eventPublisher,
-            type -> actionHandler
+            (type, handlerRef) -> actionHandler
         );
     }
 

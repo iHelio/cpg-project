@@ -16,14 +16,22 @@
 
 package com.ihelio.cpg.interfaces.rest;
 
+import com.ihelio.cpg.application.orchestration.InstanceOrchestrator;
 import com.ihelio.cpg.domain.exception.ProcessExecutionException;
 import com.ihelio.cpg.domain.execution.ProcessInstance;
+import com.ihelio.cpg.domain.model.Edge;
 import com.ihelio.cpg.domain.model.Node;
 import com.ihelio.cpg.domain.model.ProcessGraph;
 import com.ihelio.cpg.domain.orchestration.OrchestrationEvent;
 import com.ihelio.cpg.domain.orchestration.ProcessOrchestrator;
 import com.ihelio.cpg.domain.orchestration.RuntimeContext;
 import com.ihelio.cpg.domain.repository.ProcessGraphRepository;
+import com.ihelio.cpg.domain.repository.ProcessInstanceRepository;
+import java.time.Instant;
+import java.time.LocalDate;
+import java.util.ArrayList;
+import java.util.LinkedHashMap;
+import java.util.List;
 import com.ihelio.cpg.interfaces.rest.dto.request.SignalEventRequest;
 import com.ihelio.cpg.interfaces.rest.dto.request.StartOrchestrationRequest;
 import com.ihelio.cpg.interfaces.rest.dto.response.OrchestrationStatusResponse;
@@ -61,12 +69,18 @@ public class OrchestrationController {
 
     private final ProcessOrchestrator processOrchestrator;
     private final ProcessGraphRepository processGraphRepository;
+    private final ProcessInstanceRepository processInstanceRepository;
+    private final InstanceOrchestrator instanceOrchestrator;
 
     public OrchestrationController(
             ProcessOrchestrator processOrchestrator,
-            ProcessGraphRepository processGraphRepository) {
+            ProcessGraphRepository processGraphRepository,
+            ProcessInstanceRepository processInstanceRepository,
+            InstanceOrchestrator instanceOrchestrator) {
         this.processOrchestrator = processOrchestrator;
         this.processGraphRepository = processGraphRepository;
+        this.processInstanceRepository = processInstanceRepository;
+        this.instanceOrchestrator = instanceOrchestrator;
     }
 
     /**
@@ -252,6 +266,263 @@ public class OrchestrationController {
         return ResponseEntity.ok(OrchestrationStatusResponse.from(status));
     }
 
+    /**
+     * Executes a single orchestration step for a process instance.
+     *
+     * <p>The orchestrator is completely event-driven - each call executes
+     * at most one node. Call this repeatedly after signaling events to
+     * progress through the workflow.
+     *
+     * @param instanceId the process instance ID
+     * @return the updated orchestration status
+     */
+    @PostMapping("/{instanceId}/step")
+    public ResponseEntity<OrchestrationStatusResponse> step(
+            @PathVariable String instanceId) {
+
+        log.info("Stepping orchestration for instance: {}", instanceId);
+
+        ProcessInstance.ProcessInstanceId id =
+            new ProcessInstance.ProcessInstanceId(instanceId);
+
+        ProcessInstance instance = processInstanceRepository.findById(id)
+            .orElse(null);
+
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        if (!instance.isRunning()) {
+            ProcessOrchestrator.OrchestrationStatus status = processOrchestrator.getStatus(id);
+            return ResponseEntity.ok(OrchestrationStatusResponse.from(status));
+        }
+
+        ProcessGraph graph = processGraphRepository.findByIdAndVersion(
+                instance.processGraphId(), instance.processGraphVersion())
+            .orElseThrow(() -> new ProcessExecutionException(
+                "Process graph not found: " + instance.processGraphId().value(),
+                ProcessExecutionException.ErrorType.GRAPH_NOT_FOUND
+            ));
+
+        // Execute a single orchestration step
+        InstanceOrchestrator.OrchestrationResult result =
+            instanceOrchestrator.orchestrate(instance, graph, null);
+
+        // Save updated instance
+        processInstanceRepository.save(result.instance());
+
+        // Build and return status
+        ProcessOrchestrator.OrchestrationStatus status = new ProcessOrchestrator.OrchestrationStatus(
+            result.instance(),
+            result.decision(),
+            result.trace(),
+            result.isExecuted() || result.isWaiting()
+        );
+
+        return ResponseEntity.ok(OrchestrationStatusResponse.from(status));
+    }
+
+    /**
+     * Gets available events that can be sent to progress the instance.
+     *
+     * @param instanceId the process instance ID
+     * @return list of available events with payloads
+     */
+    @GetMapping("/{instanceId}/available-events")
+    public ResponseEntity<Map<String, Object>> getAvailableEvents(
+            @PathVariable String instanceId) {
+
+        log.info("Getting available events for instance: {}", instanceId);
+
+        ProcessInstance.ProcessInstanceId id =
+            new ProcessInstance.ProcessInstanceId(instanceId);
+
+        ProcessInstance instance = processInstanceRepository.findById(id)
+            .orElse(null);
+
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        ProcessGraph graph = processGraphRepository.findByIdAndVersion(
+                instance.processGraphId(), instance.processGraphVersion())
+            .orElse(null);
+
+        if (graph == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        List<Map<String, Object>> availableEvents = new ArrayList<>();
+
+        // Check each completed node for outbound edge event triggers
+        for (ProcessInstance.NodeExecution execution : instance.nodeExecutions()) {
+            if (execution.status() != ProcessInstance.NodeExecutionStatus.COMPLETED) {
+                continue;
+            }
+
+            List<Edge> outboundEdges = graph.getOutboundEdges(execution.nodeId());
+            for (Edge edge : outboundEdges) {
+                Node targetNode = graph.findNode(edge.targetNodeId()).orElse(null);
+                if (targetNode == null || instance.hasExecutedNode(edge.targetNodeId())) {
+                    continue;
+                }
+
+                for (String eventType : edge.eventTriggers().activatingEvents()) {
+                    Map<String, Object> eventInfo = new LinkedHashMap<>();
+                    eventInfo.put("eventType", eventType);
+                    eventInfo.put("targetNode", targetNode.name());
+                    eventInfo.put("edgeName", edge.name() != null ? edge.name() : "");
+                    eventInfo.put("description", getEventDescription(eventType));
+                    eventInfo.put("payload", generateEventPayload(eventType));
+                    availableEvents.add(eventInfo);
+                }
+            }
+        }
+
+        // Remove duplicates
+        Map<String, Map<String, Object>> uniqueEvents = new LinkedHashMap<>();
+        for (Map<String, Object> event : availableEvents) {
+            String type = (String) event.get("eventType");
+            if (!uniqueEvents.containsKey(type)) {
+                uniqueEvents.put(type, event);
+            }
+        }
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("instanceId", instanceId);
+        response.put("instanceStatus", instance.status().name());
+        response.put("availableEvents", new ArrayList<>(uniqueEvents.values()));
+
+        return ResponseEntity.ok(response);
+    }
+
+    /**
+     * Sends an event with auto-populated payload to progress the instance.
+     *
+     * @param instanceId the process instance ID
+     * @param eventType the event type to send
+     * @return the updated orchestration status
+     */
+    @PostMapping("/{instanceId}/send-event/{eventType}")
+    public ResponseEntity<Map<String, Object>> sendEvent(
+            @PathVariable String instanceId,
+            @PathVariable String eventType) {
+
+        log.info("Sending event {} to instance {}", eventType, instanceId);
+
+        ProcessInstance.ProcessInstanceId id =
+            new ProcessInstance.ProcessInstanceId(instanceId);
+
+        ProcessInstance instance = processInstanceRepository.findById(id)
+            .orElse(null);
+
+        if (instance == null) {
+            return ResponseEntity.notFound().build();
+        }
+
+        Map<String, Object> payload = generateEventPayload(eventType);
+
+        OrchestrationEvent event = OrchestrationEvent.DomainEvent.of(
+            eventType,
+            instanceId,
+            payload
+        );
+
+        processOrchestrator.signal(event);
+
+        ProcessOrchestrator.OrchestrationStatus status = processOrchestrator.getStatus(id);
+
+        Map<String, Object> response = new LinkedHashMap<>();
+        response.put("instanceId", instanceId);
+        response.put("eventType", eventType);
+        response.put("payload", payload);
+        response.put("sent", true);
+
+        if (status != null) {
+            response.put("instanceStatus", status.instance().status().name());
+            response.put("isActive", status.isActive());
+        }
+
+        return ResponseEntity.ok(response);
+    }
+
+    private String getEventDescription(String eventType) {
+        return switch (eventType) {
+            case "OnboardingStarted" -> "Signals that onboarding process has started";
+            case "BackgroundCheckCompleted" -> "Signals that background check has completed";
+            case "BackgroundCheckFailed" -> "Signals that background check has failed";
+            case "BackgroundReviewCompleted" -> "Signals that manual review is complete";
+            case "EquipmentReady" -> "Signals that ordered equipment is ready for shipping";
+            case "EquipmentShipped" -> "Signals that equipment has been shipped";
+            case "DocumentsCollected" -> "Signals that required documents have been collected";
+            case "I9Verified" -> "Signals that I-9 verification is complete";
+            case "OrientationScheduled" -> "Signals that orientation has been scheduled";
+            default -> "Domain event: " + eventType;
+        };
+    }
+
+    private Map<String, Object> generateEventPayload(String eventType) {
+        return switch (eventType) {
+            case "OnboardingStarted" -> Map.of(
+                "timestamp", Instant.now().toString(),
+                "source", "orchestrator"
+            );
+            case "BackgroundCheckCompleted" -> Map.of(
+                "status", "COMPLETED",
+                "passed", true,
+                "requiresReview", false,
+                "timestamp", Instant.now().toString()
+            );
+            case "BackgroundCheckFailed" -> Map.of(
+                "status", "FAILED",
+                "passed", false,
+                "reason", "Background check did not pass",
+                "timestamp", Instant.now().toString()
+            );
+            case "BackgroundReviewCompleted" -> Map.of(
+                "decision", "APPROVED",
+                "reviewer", "hr-manager",
+                "comments", "Review completed successfully",
+                "timestamp", Instant.now().toString()
+            );
+            case "EquipmentReady" -> Map.of(
+                "orderId", "EQ-" + System.currentTimeMillis(),
+                "status", "READY",
+                "items", List.of("laptop", "monitor", "keyboard"),
+                "timestamp", Instant.now().toString()
+            );
+            case "EquipmentShipped" -> Map.of(
+                "trackingNumber", "TRK-" + System.currentTimeMillis(),
+                "carrier", "FedEx",
+                "estimatedDelivery", LocalDate.now().plusDays(3).toString(),
+                "timestamp", Instant.now().toString()
+            );
+            case "DocumentsCollected" -> Map.of(
+                "i9Part1Completed", true,
+                "w4Completed", true,
+                "directDepositCompleted", true,
+                "timestamp", Instant.now().toString()
+            );
+            case "I9Verified" -> Map.of(
+                "verified", true,
+                "verificationDate", LocalDate.now().toString(),
+                "documentType", "passport",
+                "timestamp", Instant.now().toString()
+            );
+            case "OrientationScheduled" -> Map.of(
+                "scheduled", true,
+                "date", LocalDate.now().plusDays(14).toString(),
+                "time", "09:00",
+                "location", "Virtual",
+                "timestamp", Instant.now().toString()
+            );
+            default -> Map.of(
+                "eventType", eventType,
+                "timestamp", Instant.now().toString()
+            );
+        };
+    }
+
     private OrchestrationEvent createEvent(
             ProcessInstance.ProcessInstanceId instanceId,
             SignalEventRequest request) {
@@ -325,9 +596,14 @@ public class OrchestrationController {
                     data
                 );
             }
-            default -> throw new IllegalArgumentException(
-                "Unsupported event type: " + request.eventType()
-            );
+            default -> {
+                // Treat unknown event types as domain events
+                yield OrchestrationEvent.DomainEvent.of(
+                    request.eventType(),
+                    instanceId.value(),
+                    request.payload() != null ? request.payload() : Map.of()
+                );
+            }
         };
     }
 }

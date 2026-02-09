@@ -34,7 +34,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.Objects;
 import java.util.UUID;
-import java.util.function.Function;
+import java.util.function.BiFunction;
 
 /**
  * Main process execution engine that orchestrates all components.
@@ -56,7 +56,7 @@ public class ProcessExecutionEngine {
     private final ExecutionCoordinator executionCoordinator;
     private final CompensationHandler compensationHandler;
     private final ProcessEventPublisher eventPublisher;
-    private final Function<Node.ActionType, ActionHandler> actionHandlerResolver;
+    private final BiFunction<Node.ActionType, String, ActionHandler> actionHandlerResolver;
 
     public ProcessExecutionEngine(
             NodeEvaluator nodeEvaluator,
@@ -64,7 +64,7 @@ public class ProcessExecutionEngine {
             ExecutionCoordinator executionCoordinator,
             CompensationHandler compensationHandler,
             ProcessEventPublisher eventPublisher,
-            Function<Node.ActionType, ActionHandler> actionHandlerResolver) {
+            BiFunction<Node.ActionType, String, ActionHandler> actionHandlerResolver) {
         this.nodeEvaluator = Objects.requireNonNull(nodeEvaluator);
         this.edgeEvaluator = Objects.requireNonNull(edgeEvaluator);
         this.executionCoordinator = Objects.requireNonNull(executionCoordinator);
@@ -184,7 +184,8 @@ public class ProcessExecutionEngine {
 
         try {
             // 3. Execute the action
-            ActionHandler handler = actionHandlerResolver.apply(node.action().type());
+            ActionHandler handler = actionHandlerResolver.apply(
+                node.action().type(), node.action().handlerRef());
             if (handler == null) {
                 throw new ProcessExecutionException(
                     "No handler for action type: " + node.action().type(),

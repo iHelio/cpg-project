@@ -47,7 +47,8 @@ public sealed interface OrchestrationEvent
             OrchestrationEvent.TimerExpired,
             OrchestrationEvent.PolicyUpdate,
             OrchestrationEvent.NodeCompleted,
-            OrchestrationEvent.NodeFailed {
+            OrchestrationEvent.NodeFailed,
+            OrchestrationEvent.DomainEvent {
 
     /**
      * Returns the unique event ID.
@@ -485,6 +486,88 @@ public sealed interface OrchestrationEvent
                 errorMessage,
                 0,
                 retryable
+            );
+        }
+    }
+
+    /**
+     * Event triggered by domain-specific business events.
+     *
+     * <p>DomainEvent is a catch-all for custom domain events that are emitted
+     * by nodes (e.g., "OnboardingStarted", "OfferAccepted", "BackgroundCheckCompleted")
+     * and can trigger other nodes that subscribe to these events.
+     *
+     * @param eventId unique event identifier
+     * @param timestamp when the event occurred
+     * @param correlationId correlation to process instances
+     * @param domainEventType the domain-specific event type name
+     * @param sourceNodeId the node that emitted this event (if any)
+     * @param payload the event payload data
+     */
+    record DomainEvent(
+        String eventId,
+        Instant timestamp,
+        String correlationId,
+        String domainEventType,
+        Node.NodeId sourceNodeId,
+        Map<String, Object> payload
+    ) implements OrchestrationEvent {
+
+        public DomainEvent {
+            Objects.requireNonNull(eventId, "eventId is required");
+            Objects.requireNonNull(timestamp, "timestamp is required");
+            Objects.requireNonNull(domainEventType, "domainEventType is required");
+            payload = payload != null ? Map.copyOf(payload) : Map.of();
+        }
+
+        @Override
+        public String eventType() {
+            return domainEventType;
+        }
+
+        /**
+         * Creates a domain event with correlation ID.
+         */
+        public static DomainEvent of(String domainEventType, String correlationId,
+                Map<String, Object> payload) {
+            return new DomainEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                correlationId,
+                domainEventType,
+                null,
+                payload
+            );
+        }
+
+        /**
+         * Creates a domain event from a node emission.
+         */
+        public static DomainEvent fromNode(String domainEventType,
+                ProcessInstance.ProcessInstanceId instanceId,
+                Node.NodeId sourceNodeId,
+                Map<String, Object> payload) {
+            return new DomainEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                instanceId.value(),
+                domainEventType,
+                sourceNodeId,
+                payload
+            );
+        }
+
+        /**
+         * Creates a domain event without correlation (broadcasts to all running instances).
+         */
+        public static DomainEvent broadcast(String domainEventType, Map<String, Object> payload) {
+            return new DomainEvent(
+                UUID.randomUUID().toString(),
+                Instant.now(),
+                null,
+                domainEventType,
+                null,
+                payload
             );
         }
     }

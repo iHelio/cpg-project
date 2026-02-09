@@ -102,7 +102,8 @@ class InstanceOrchestratorTest {
             .eligibleNodes(List.of(nodeEval))
             .candidateActions(List.of(action))
             .build();
-        when(eligibilityEvaluator.evaluate(eq(instance), eq(graph), eq(context)))
+
+        when(eligibilityEvaluator.evaluate(any(), eq(graph), any()))
             .thenReturn(eligibleSpace);
 
         NavigationDecision decision = NavigationDecision.proceed(
@@ -112,7 +113,8 @@ class InstanceOrchestratorTest {
             "Single option available",
             eligibleSpace
         );
-        when(nodeSelector.select(eq(eligibleSpace), eq(instance), eq(graph)))
+
+        when(nodeSelector.select(eq(eligibleSpace), any(), eq(graph)))
             .thenReturn(decision);
 
         GovernanceResult governance = GovernanceResult.approved(
@@ -120,7 +122,7 @@ class InstanceOrchestratorTest {
             GovernanceResult.AuthorizationResult.skipped(),
             GovernanceResult.PolicyGateResult.skipped()
         );
-        when(executionGovernor.enforce(eq(instance), eq(entryNode), eq(context)))
+        when(executionGovernor.enforce(eq(instance), eq(entryNode), any()))
             .thenReturn(governance);
 
         NodeExecutionResult executionResult = NodeExecutionResult.success(
@@ -143,7 +145,7 @@ class InstanceOrchestratorTest {
         assertNotNull(result.trace());
         assertNotNull(result.governance());
         verify(decisionTracer).record(any(DecisionTrace.class));
-        verify(executionGovernor).recordExecution(eq(instance), eq(entryNode), eq(context), any());
+        verify(executionGovernor).recordExecution(eq(instance), eq(entryNode), any(), any());
     }
 
     @Test
@@ -277,6 +279,7 @@ class InstanceOrchestratorTest {
             .eligibleNodes(List.of(nodeEval))
             .candidateActions(List.of(action))
             .build();
+
         when(eligibilityEvaluator.evaluateEntryNodes(eq(graph), eq(context)))
             .thenReturn(eligibleSpace);
 
@@ -287,7 +290,8 @@ class InstanceOrchestratorTest {
             "Single entry node",
             eligibleSpace
         );
-        when(nodeSelector.select(eq(eligibleSpace), eq(instance), eq(graph)))
+
+        when(nodeSelector.select(eq(eligibleSpace), any(), eq(graph)))
             .thenReturn(decision);
 
         GovernanceResult governance = GovernanceResult.approved(
@@ -295,7 +299,7 @@ class InstanceOrchestratorTest {
             GovernanceResult.AuthorizationResult.skipped(),
             GovernanceResult.PolicyGateResult.skipped()
         );
-        when(executionGovernor.enforce(eq(instance), eq(entryNode), eq(context)))
+        when(executionGovernor.enforce(eq(instance), eq(entryNode), any()))
             .thenReturn(governance);
 
         NodeExecutionResult executionResult = NodeExecutionResult.success(

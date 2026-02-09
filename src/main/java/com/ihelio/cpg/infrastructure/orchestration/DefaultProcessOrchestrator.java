@@ -29,6 +29,8 @@ import com.ihelio.cpg.domain.orchestration.ProcessOrchestrator;
 import com.ihelio.cpg.domain.orchestration.RuntimeContext;
 import com.ihelio.cpg.domain.repository.ProcessGraphRepository;
 import com.ihelio.cpg.domain.repository.ProcessInstanceRepository;
+import jakarta.annotation.PostConstruct;
+import jakarta.annotation.PreDestroy;
 import java.time.Instant;
 import java.util.Map;
 import java.util.Objects;
@@ -107,6 +109,7 @@ public class DefaultProcessOrchestrator implements ProcessOrchestrator {
     /**
      * Starts the orchestrator's event processing loop.
      */
+    @PostConstruct
     public void startEventLoop() {
         if (running.compareAndSet(false, true)) {
             LOG.info("Starting orchestrator event loop");
@@ -117,6 +120,7 @@ public class DefaultProcessOrchestrator implements ProcessOrchestrator {
     /**
      * Stops the orchestrator's event processing loop.
      */
+    @PreDestroy
     public void stopEventLoop() {
         if (running.compareAndSet(true, false)) {
             LOG.info("Stopping orchestrator event loop");
@@ -339,14 +343,7 @@ public class DefaultProcessOrchestrator implements ProcessOrchestrator {
     }
 
     private java.util.List<ProcessInstance> findAffectedInstances(OrchestrationEvent event) {
-        // If event has correlation ID, find by correlation
-        if (event.correlationId() != null && !event.correlationId().isBlank()) {
-            return instanceRepository.findByCorrelationId(event.correlationId()).stream()
-                .filter(ProcessInstance::isRunning)
-                .toList();
-        }
-
-        // Handle specific event types
+        // Handle specific event types that have explicit instanceId first
         return switch (event) {
             case OrchestrationEvent.NodeCompleted nc ->
                 instanceRepository.findById(nc.instanceId())
@@ -372,13 +369,52 @@ public class DefaultProcessOrchestrator implements ProcessOrchestrator {
                     .map(java.util.List::of)
                     .orElse(java.util.List.of());
 
+            case OrchestrationEvent.DomainEvent domainEvent -> {
+                // For domain events, first try to find by instance ID (correlationId may be instanceId)
+                if (domainEvent.correlationId() != null && !domainEvent.correlationId().isBlank()) {
+                    // Try to find by instance ID first
+                    var byInstanceId = instanceRepository.findById(
+                            new ProcessInstance.ProcessInstanceId(domainEvent.correlationId()))
+                        .filter(ProcessInstance::isRunning)
+                        .map(java.util.List::of)
+                        .orElse(java.util.List.of());
+
+                    if (!byInstanceId.isEmpty()) {
+                        yield byInstanceId;
+                    }
+
+                    // Fall back to correlation ID lookup
+                    var byCorrelation = instanceRepository.findByCorrelationId(domainEvent.correlationId())
+                        .stream()
+                        .filter(ProcessInstance::isRunning)
+                        .toList();
+
+                    if (!byCorrelation.isEmpty()) {
+                        yield byCorrelation;
+                    }
+                }
+                // Broadcast to all running instances
+                yield instanceRepository.findRunning();
+            }
+
             case OrchestrationEvent.PolicyUpdate policyUpdate ->
                 // Find all running instances that might use this policy
                 instanceRepository.findRunning();
 
-            default ->
-                // For data changes and failures, find by correlation or all running
-                instanceRepository.findRunning();
+            default -> {
+                // For data changes and failures, try correlation ID first
+                if (event.correlationId() != null && !event.correlationId().isBlank()) {
+                    var byCorrelation = instanceRepository.findByCorrelationId(event.correlationId())
+                        .stream()
+                        .filter(ProcessInstance::isRunning)
+                        .toList();
+                    if (!byCorrelation.isEmpty()) {
+                        yield byCorrelation;
+                    }
+                }
+                // Fall back to all running instances
+                yield instanceRepository.findRunning();
+            }
         };
     }
 

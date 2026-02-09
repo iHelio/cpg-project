@@ -29,21 +29,17 @@ import com.ihelio.cpg.domain.orchestration.NavigationDecision;
 import com.ihelio.cpg.domain.orchestration.NodeSelector;
 import com.ihelio.cpg.domain.orchestration.RuntimeContext;
 import java.util.Objects;
-import java.util.Optional;
 import java.util.UUID;
 
 /**
- * InstanceOrchestrator orchestrates a single process instance through the full evaluation
- * and execution cycle.
+ * InstanceOrchestrator orchestrates a single process instance through event-driven execution.
  *
- * <p>The orchestration cycle:
- * <ol>
- *   <li>Assemble runtime context from all sources</li>
- *   <li>Evaluate eligible space (nodes and edges)</li>
- *   <li>Select next action(s) deterministically</li>
- *   <li>Enforce governance before execution</li>
- *   <li>Execute and trace the decision</li>
- * </ol>
+ * <p>The orchestrator is completely event-driven:
+ * <ul>
+ *   <li>Each event triggers evaluation and potentially one node execution</li>
+ *   <li>No auto-advance - explicit events required to progress</li>
+ *   <li>Provides visibility into required events for progression</li>
+ * </ul>
  */
 public class InstanceOrchestrator {
 
@@ -54,16 +50,6 @@ public class InstanceOrchestrator {
     private final ProcessExecutionEngine executionEngine;
     private final DecisionTracer decisionTracer;
 
-    /**
-     * Creates an InstanceOrchestrator with all required components.
-     *
-     * @param contextAssembler assembles the runtime context
-     * @param eligibilityEvaluator evaluates eligible space
-     * @param nodeSelector selects next action
-     * @param executionGovernor enforces governance
-     * @param executionEngine executes nodes
-     * @param decisionTracer traces decisions
-     */
     public InstanceOrchestrator(
             ContextAssembler contextAssembler,
             EligibilityEvaluator eligibilityEvaluator,
@@ -80,28 +66,18 @@ public class InstanceOrchestrator {
     }
 
     /**
-     * Performs a full orchestration cycle for a process instance.
-     *
-     * @param instance the process instance
-     * @param graph the process graph
-     * @param tenantId optional tenant ID for context assembly
-     * @return the orchestration result
+     * Performs a single orchestration step for a process instance.
+     * Executes at most one node per call - event-driven progression.
      */
     public OrchestrationResult orchestrate(ProcessInstance instance, ProcessGraph graph,
             String tenantId) {
         Objects.requireNonNull(instance, "instance is required");
         Objects.requireNonNull(graph, "graph is required");
 
-        // 1. Assemble runtime context
         RuntimeContext context = contextAssembler.assemble(instance, tenantId);
-
-        // 2. Evaluate eligible space
         EligibleSpace eligibleSpace = eligibilityEvaluator.evaluate(instance, graph, context);
-
-        // 3. Select next action(s)
         NavigationDecision decision = nodeSelector.select(eligibleSpace, instance, graph);
 
-        // 4. Handle based on decision type
         return switch (decision.type()) {
             case PROCEED -> handleProceed(instance, graph, context, eligibleSpace, decision);
             case WAIT -> handleWait(instance, context, eligibleSpace, decision);
@@ -111,12 +87,7 @@ public class InstanceOrchestrator {
     }
 
     /**
-     * Orchestrates entry into the process (first nodes).
-     *
-     * @param instance the new process instance
-     * @param graph the process graph
-     * @param initialContext the initial runtime context
-     * @return the orchestration result
+     * Orchestrates entry into the process (first node only).
      */
     public OrchestrationResult orchestrateEntry(ProcessInstance instance, ProcessGraph graph,
             RuntimeContext initialContext) {
@@ -124,10 +95,7 @@ public class InstanceOrchestrator {
         Objects.requireNonNull(graph, "graph is required");
         Objects.requireNonNull(initialContext, "initialContext is required");
 
-        // Evaluate entry nodes
         EligibleSpace eligibleSpace = eligibilityEvaluator.evaluateEntryNodes(graph, initialContext);
-
-        // Select entry action
         NavigationDecision decision = nodeSelector.select(eligibleSpace, instance, graph);
 
         if (!decision.shouldProceed()) {
@@ -138,23 +106,14 @@ public class InstanceOrchestrator {
     }
 
     /**
-     * Re-orchestrates after an event.
-     *
-     * @param instance the process instance
-     * @param graph the process graph
-     * @param context the updated runtime context
-     * @param eventType the event type that triggered reevaluation
-     * @return the orchestration result
+     * Re-evaluates and executes after an event (single step).
      */
     public OrchestrationResult reevaluateAfterEvent(ProcessInstance instance, ProcessGraph graph,
             RuntimeContext context, String eventType) {
         Objects.requireNonNull(eventType, "eventType is required");
 
-        // Reevaluate eligible space considering the event
         EligibleSpace eligibleSpace = eligibilityEvaluator.reevaluateAfterEvent(
             instance, graph, context, eventType);
-
-        // Select next action
         NavigationDecision decision = nodeSelector.select(eligibleSpace, instance, graph);
 
         return switch (decision.type()) {
@@ -165,6 +124,9 @@ public class InstanceOrchestrator {
         };
     }
 
+    /**
+     * Executes a single node - no auto-advance.
+     */
     private OrchestrationResult handleProceed(
             ProcessInstance instance,
             ProcessGraph graph,
@@ -172,7 +134,6 @@ public class InstanceOrchestrator {
             EligibleSpace eligibleSpace,
             NavigationDecision decision) {
 
-        // Get the selected node
         NavigationDecision.NodeSelection selection = decision.primarySelection();
         if (selection == null) {
             return handleWait(instance, context, eligibleSpace, decision);
@@ -180,49 +141,36 @@ public class InstanceOrchestrator {
 
         Node node = selection.node();
 
-        // 4. Enforce governance
-        GovernanceResult governance = executionGovernor.enforce(instance, node, context);
+        if (instance.hasExecutedNode(node.id())) {
+            return handleWait(instance, context, eligibleSpace, decision);
+        }
 
+        GovernanceResult governance = executionGovernor.enforce(instance, node, context);
         if (!governance.approved()) {
-            // Governance blocked execution
             return handleGovernanceBlocked(instance, context, eligibleSpace, decision, governance);
         }
 
-        // 5. Execute the node
         String executionId = UUID.randomUUID().toString();
         try {
-            // Start node execution
             instance.startNodeExecution(node.id());
-
-            // Execute via engine
             var executionResult = executionEngine.executeNode(instance, graph, node);
-
-            // Complete node execution
             instance.completeNodeExecution(node.id(), executionResult.getOutput());
-
-            // Record execution in governance (for idempotency)
             executionGovernor.recordExecution(instance, node, context, executionId);
 
-            // Update context with result
-            RuntimeContext updatedContext = contextAssembler.updateEntityState(
-                context, node.id().value(), executionResult.getOutput());
-            instance.updateContext(updatedContext.toExecutionContext());
+            RuntimeContext updatedContext = RuntimeContext.fromExecutionContext(instance.context())
+                .withEntityState(node.id().value(), executionResult.getOutput());
 
-            // Build and record trace
             DecisionTrace trace = buildExecutionTrace(
-                instance, context, eligibleSpace, decision, governance, executionResult.getOutput());
+                instance, updatedContext, eligibleSpace, decision, governance, executionResult.getOutput());
             decisionTracer.record(trace);
 
             return OrchestrationResult.executed(instance, decision, trace, governance);
 
         } catch (Exception e) {
-            // Execution failed
             instance.failNodeExecution(node.id(), e.getMessage());
-
             DecisionTrace trace = buildFailedTrace(
                 instance, context, eligibleSpace, decision, governance, e.getMessage());
             decisionTracer.record(trace);
-
             return OrchestrationResult.failed(instance, decision, trace, e.getMessage());
         }
     }
@@ -232,10 +180,8 @@ public class InstanceOrchestrator {
             RuntimeContext context,
             EligibleSpace eligibleSpace,
             NavigationDecision decision) {
-
         DecisionTrace trace = buildWaitTrace(instance, context, eligibleSpace, decision);
         decisionTracer.record(trace);
-
         return OrchestrationResult.waiting(instance, decision, trace);
     }
 
@@ -244,12 +190,9 @@ public class InstanceOrchestrator {
             RuntimeContext context,
             EligibleSpace eligibleSpace,
             NavigationDecision decision) {
-
         instance.complete();
-
         DecisionTrace trace = buildCompleteTrace(instance, context, eligibleSpace, decision);
         decisionTracer.record(trace);
-
         return OrchestrationResult.completed(instance, decision, trace);
     }
 
@@ -258,10 +201,8 @@ public class InstanceOrchestrator {
             RuntimeContext context,
             EligibleSpace eligibleSpace,
             NavigationDecision decision) {
-
         DecisionTrace trace = buildBlockedTrace(instance, context, eligibleSpace, decision, null);
         decisionTracer.record(trace);
-
         return OrchestrationResult.blocked(instance, decision, trace, decision.selectionReason());
     }
 
@@ -271,23 +212,14 @@ public class InstanceOrchestrator {
             EligibleSpace eligibleSpace,
             NavigationDecision decision,
             GovernanceResult governance) {
-
-        DecisionTrace trace = buildBlockedTrace(
-            instance, context, eligibleSpace, decision, governance);
+        DecisionTrace trace = buildBlockedTrace(instance, context, eligibleSpace, decision, governance);
         decisionTracer.record(trace);
-
-        return OrchestrationResult.blocked(instance, decision, trace,
-            governance.rejectionReason());
+        return OrchestrationResult.blocked(instance, decision, trace, governance.rejectionReason());
     }
 
     private DecisionTrace buildExecutionTrace(
-            ProcessInstance instance,
-            RuntimeContext context,
-            EligibleSpace eligibleSpace,
-            NavigationDecision decision,
-            GovernanceResult governance,
-            Object result) {
-
+            ProcessInstance instance, RuntimeContext context, EligibleSpace eligibleSpace,
+            NavigationDecision decision, GovernanceResult governance, Object result) {
         return DecisionTrace.builder()
             .instanceId(instance.id())
             .type(DecisionTrace.DecisionType.EXECUTION)
@@ -302,35 +234,29 @@ public class InstanceOrchestrator {
     }
 
     private DecisionTrace buildWaitTrace(
-            ProcessInstance instance,
-            RuntimeContext context,
-            EligibleSpace eligibleSpace,
-            NavigationDecision decision) {
-
+            ProcessInstance instance, RuntimeContext context,
+            EligibleSpace eligibleSpace, NavigationDecision decision) {
         return DecisionTrace.builder()
             .instanceId(instance.id())
             .type(DecisionTrace.DecisionType.WAIT)
             .context(context)
             .evaluation(buildEvaluationSnapshot(eligibleSpace))
             .decision(decision)
-            .governance(GovernanceSnapshot.skipped())
+            .governance(DecisionTrace.GovernanceSnapshot.skipped())
             .outcome(DecisionTrace.OutcomeSnapshot.waiting())
             .build();
     }
 
     private DecisionTrace buildCompleteTrace(
-            ProcessInstance instance,
-            RuntimeContext context,
-            EligibleSpace eligibleSpace,
-            NavigationDecision decision) {
-
+            ProcessInstance instance, RuntimeContext context,
+            EligibleSpace eligibleSpace, NavigationDecision decision) {
         return DecisionTrace.builder()
             .instanceId(instance.id())
             .type(DecisionTrace.DecisionType.NAVIGATION)
             .context(context)
             .evaluation(buildEvaluationSnapshot(eligibleSpace))
             .decision(decision)
-            .governance(GovernanceSnapshot.skipped())
+            .governance(DecisionTrace.GovernanceSnapshot.skipped())
             .outcome(DecisionTrace.OutcomeSnapshot.executed(
                 java.util.Map.of("completed", true),
                 DecisionTrace.OutcomeSnapshot.NextState.from(instance)))
@@ -338,20 +264,12 @@ public class InstanceOrchestrator {
     }
 
     private DecisionTrace buildBlockedTrace(
-            ProcessInstance instance,
-            RuntimeContext context,
-            EligibleSpace eligibleSpace,
-            NavigationDecision decision,
-            GovernanceResult governance) {
-
-        String reason = governance != null
-            ? governance.rejectionReason()
-            : decision.selectionReason();
-
+            ProcessInstance instance, RuntimeContext context, EligibleSpace eligibleSpace,
+            NavigationDecision decision, GovernanceResult governance) {
+        String reason = governance != null ? governance.rejectionReason() : decision.selectionReason();
         DecisionTrace.GovernanceSnapshot governanceSnapshot = governance != null
             ? DecisionTrace.GovernanceSnapshot.from(governance)
             : DecisionTrace.GovernanceSnapshot.skipped();
-
         return DecisionTrace.builder()
             .instanceId(instance.id())
             .type(DecisionTrace.DecisionType.BLOCKED)
@@ -364,13 +282,8 @@ public class InstanceOrchestrator {
     }
 
     private DecisionTrace buildFailedTrace(
-            ProcessInstance instance,
-            RuntimeContext context,
-            EligibleSpace eligibleSpace,
-            NavigationDecision decision,
-            GovernanceResult governance,
-            String error) {
-
+            ProcessInstance instance, RuntimeContext context, EligibleSpace eligibleSpace,
+            NavigationDecision decision, GovernanceResult governance, String error) {
         return DecisionTrace.builder()
             .instanceId(instance.id())
             .type(DecisionTrace.DecisionType.EXECUTION)
@@ -394,13 +307,6 @@ public class InstanceOrchestrator {
         );
     }
 
-    // Helper type alias for governance snapshot
-    private static class GovernanceSnapshot {
-        static DecisionTrace.GovernanceSnapshot skipped() {
-            return DecisionTrace.GovernanceSnapshot.skipped();
-        }
-    }
-
     /**
      * Result of an orchestration cycle.
      */
@@ -421,71 +327,42 @@ public class InstanceOrchestrator {
         }
 
         public static OrchestrationResult executed(
-                ProcessInstance instance,
-                NavigationDecision decision,
-                DecisionTrace trace,
-                GovernanceResult governance) {
-            return new OrchestrationResult(
-                instance, decision, trace, governance,
+                ProcessInstance instance, NavigationDecision decision,
+                DecisionTrace trace, GovernanceResult governance) {
+            return new OrchestrationResult(instance, decision, trace, governance,
                 OrchestrationStatus.EXECUTED, "Node executed successfully");
         }
 
         public static OrchestrationResult waiting(
-                ProcessInstance instance,
-                NavigationDecision decision,
-                DecisionTrace trace) {
-            return new OrchestrationResult(
-                instance, decision, trace, null,
+                ProcessInstance instance, NavigationDecision decision, DecisionTrace trace) {
+            return new OrchestrationResult(instance, decision, trace, null,
                 OrchestrationStatus.WAITING, "Waiting for events");
         }
 
         public static OrchestrationResult blocked(
-                ProcessInstance instance,
-                NavigationDecision decision,
-                DecisionTrace trace,
-                String reason) {
-            return new OrchestrationResult(
-                instance, decision, trace, null,
+                ProcessInstance instance, NavigationDecision decision,
+                DecisionTrace trace, String reason) {
+            return new OrchestrationResult(instance, decision, trace, null,
                 OrchestrationStatus.BLOCKED, reason);
         }
 
         public static OrchestrationResult completed(
-                ProcessInstance instance,
-                NavigationDecision decision,
-                DecisionTrace trace) {
-            return new OrchestrationResult(
-                instance, decision, trace, null,
+                ProcessInstance instance, NavigationDecision decision, DecisionTrace trace) {
+            return new OrchestrationResult(instance, decision, trace, null,
                 OrchestrationStatus.COMPLETED, "Process completed");
         }
 
         public static OrchestrationResult failed(
-                ProcessInstance instance,
-                NavigationDecision decision,
-                DecisionTrace trace,
-                String error) {
-            return new OrchestrationResult(
-                instance, decision, trace, null,
+                ProcessInstance instance, NavigationDecision decision,
+                DecisionTrace trace, String error) {
+            return new OrchestrationResult(instance, decision, trace, null,
                 OrchestrationStatus.FAILED, error);
         }
 
-        public boolean isExecuted() {
-            return status == OrchestrationStatus.EXECUTED;
-        }
-
-        public boolean isWaiting() {
-            return status == OrchestrationStatus.WAITING;
-        }
-
-        public boolean isBlocked() {
-            return status == OrchestrationStatus.BLOCKED;
-        }
-
-        public boolean isCompleted() {
-            return status == OrchestrationStatus.COMPLETED;
-        }
-
-        public boolean isFailed() {
-            return status == OrchestrationStatus.FAILED;
-        }
+        public boolean isExecuted() { return status == OrchestrationStatus.EXECUTED; }
+        public boolean isWaiting() { return status == OrchestrationStatus.WAITING; }
+        public boolean isBlocked() { return status == OrchestrationStatus.BLOCKED; }
+        public boolean isCompleted() { return status == OrchestrationStatus.COMPLETED; }
+        public boolean isFailed() { return status == OrchestrationStatus.FAILED; }
     }
 }

@@ -55,6 +55,7 @@ public class ActionHandlerRegistry {
     /**
      * Auto-wires handlers from Spring context.
      */
+    @org.springframework.beans.factory.annotation.Autowired
     public ActionHandlerRegistry(List<ActionHandler> handlers) {
         this();
         if (handlers != null) {
@@ -130,10 +131,10 @@ public class ActionHandlerRegistry {
     }
 
     /**
-     * Returns a function for resolving handlers by type.
+     * Returns a function for resolving handlers by type and handler reference.
      * Used for ProcessExecutionEngine construction.
      */
-    public java.util.function.Function<Node.ActionType, ActionHandler> asResolver() {
+    public java.util.function.BiFunction<Node.ActionType, String, ActionHandler> asResolver() {
         return this::getHandler;
     }
 

@@ -27,11 +27,13 @@ import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.jsonPath;
 import static org.springframework.test.web.servlet.result.MockMvcResultMatchers.status;
 
+import com.ihelio.cpg.application.orchestration.InstanceOrchestrator;
 import com.ihelio.cpg.domain.execution.ExecutionContext;
 import com.ihelio.cpg.domain.execution.ProcessInstance;
 import com.ihelio.cpg.domain.model.ProcessGraph;
 import com.ihelio.cpg.domain.orchestration.ProcessOrchestrator;
 import com.ihelio.cpg.domain.repository.ProcessGraphRepository;
+import com.ihelio.cpg.domain.repository.ProcessInstanceRepository;
 import java.util.Optional;
 import org.junit.jupiter.api.DisplayName;
 import org.junit.jupiter.api.Test;
@@ -53,6 +55,12 @@ class OrchestrationControllerTest {
 
     @MockitoBean
     private ProcessGraphRepository processGraphRepository;
+
+    @MockitoBean
+    private ProcessInstanceRepository processInstanceRepository;
+
+    @MockitoBean
+    private InstanceOrchestrator instanceOrchestrator;
 
     // ── POST /api/v1/orchestration/start ──────────────────────────────────
 
@@ -199,19 +207,28 @@ class OrchestrationControllerTest {
     }
 
     @Test
-    @DisplayName("POST /api/v1/orchestration/{instanceId}/signal should return 400 for unsupported eventType")
-    void signalEventShouldReturn400ForUnsupportedEventType() throws Exception {
+    @DisplayName("POST /api/v1/orchestration/{instanceId}/signal should handle custom domain events")
+    void signalEventShouldHandleCustomDomainEvents() throws Exception {
+        ProcessInstance instance = createTestInstance();
+        ProcessOrchestrator.OrchestrationStatus orchestrationStatus =
+            createTestOrchestrationStatus(instance);
+
+        doNothing().when(processOrchestrator).signal(any());
+        when(processOrchestrator.getStatus(any())).thenReturn(orchestrationStatus);
+
         String requestBody = """
             {
-                "eventType": "UNSUPPORTED_TYPE",
-                "payload": {}
+                "eventType": "OnboardingStarted",
+                "payload": {"employeeId": "emp-123"}
             }
             """;
 
         mockMvc.perform(post("/api/v1/orchestration/inst-123/signal")
                 .contentType(MediaType.APPLICATION_JSON)
                 .content(requestBody))
-            .andExpect(status().isBadRequest());
+            .andExpect(status().isOk())
+            .andExpect(jsonPath("$.instanceId").value("inst-123"))
+            .andExpect(jsonPath("$.status").value("RUNNING"));
     }
 
     // ── POST /api/v1/orchestration/{instanceId}/suspend ───────────────────
