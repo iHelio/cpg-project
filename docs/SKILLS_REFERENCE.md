@@ -48,49 +48,79 @@ Sends an event with auto-populated payload to enable the next workflow step.
 
 ### /orchestrate
 
-**Purpose:** Interactive workflow runner that starts and steps through a process graph.
+**Purpose:** Interactive workflow runner that starts and steps through a process graph with detailed insights into the orchestration process.
 
 **Usage:**
 ```
-/orchestrate [processGraphId] [--auto] [--context '{"key":"value"}']
+/orchestrate [processGraphId] [--auto] [--verbose] [--context '{"key":"value"}']
 ```
 
 **Arguments:**
 - `processGraphId` (optional): Process graph to run. Lists available graphs if omitted.
 - `--auto`: Automatically advance without prompting for event selection.
+- `--verbose`: Show extra details about graph structure and execution.
 - `--context`: Initial domain context as JSON.
 
 **Workflow:**
-1. Selects or lists process graphs
-2. Starts orchestration
-3. Loops through step → check status → handle events
-4. Shows progress and completion summary
+1. Displays process graph overview (nodes, edges, key events)
+2. Starts orchestration with context details
+3. Loops through step → detailed node info → event handling with payloads
+4. Shows comprehensive execution history on completion
+
+**Key Features:**
+- Shows graph structure before starting (entry points, terminals, required events)
+- Displays detailed node execution info (action type, handler, outbound edges)
+- Shows full event payloads and their effects on the workflow
+- Explains what each event means in business terms
+- Provides complete execution history with event timeline
 
 **Example Session:**
 ```
 > /orchestrate employee-onboarding
 
+╭─ Process Graph: Employee Onboarding ────────────────────╮
+│ Structure: 12 nodes, 18 edges                           │
+│ Entry: offer-accepted                                   │
+│ Key Events: BackgroundCheckCompleted, EquipmentReady... │
+╰─────────────────────────────────────────────────────────╯
+
 ╭─ Orchestration Started ─────────────────────────────────╮
-│ Process: Employee Onboarding Process                    │
 │ Instance: 87e5a6a7-ec80-418a-a16c-1f01b7203808         │
 │ Status: RUNNING                                         │
 ╰─────────────────────────────────────────────────────────╯
 
-✓ Executed: Offer Accepted
-✓ Executed: Validate Candidate Data
-✓ Executed: Initiate Background Check
+┌─ NODE EXECUTED: Initiate Background Check ──────────────┐
+│ Action Type: SYSTEM_INVOCATION                          │
+│ Handler: backgroundCheckAdapter                         │
+│                                                         │
+│ Outbound Edges:                                         │
+│   • background-passed → Equipment Procurement           │
+│     Trigger: BackgroundCheckCompleted                   │
+│   • background-failed → Onboarding Cancelled            │
+│     Trigger: BackgroundCheckFailed                      │
+└─────────────────────────────────────────────────────────┘
 
-╭─ Waiting for Event ─────────────────────────────────────╮
-│ Available Events:                                       │
-│   1. BackgroundCheckCompleted                           │
-│   2. BackgroundCheckFailed                              │
-╰─────────────────────────────────────────────────────────╯
+┌─ Event Option 1: BackgroundCheckCompleted ──────────────┐
+│ Description: Background check has completed successfully│
+│                                                         │
+│ Payload:                                                │
+│   {                                                     │
+│     "status": "COMPLETED",                              │
+│     "passed": true,                                     │
+│     "requiresReview": false,                            │
+│     "timestamp": "2026-02-09T12:30:00Z"                 │
+│   }                                                     │
+│                                                         │
+│ Effect: Enables edge to Equipment Procurement           │
+└─────────────────────────────────────────────────────────┘
 
 Which event would you like to send? (1-2): 1
 
-→ Sent event: BackgroundCheckCompleted
-✓ Executed: Equipment Procurement
-...
+┌─ Event Sent ────────────────────────────────────────────┐
+│ → BackgroundCheckCompleted                              │
+│ Payload: {"status": "COMPLETED", "passed": true, ...}   │
+│ Edge 'background-passed' now traversable                │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ---
