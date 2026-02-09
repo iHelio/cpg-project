@@ -213,7 +213,7 @@ cpg/
 │   │   │   │       └── OrchestratorEventSubscriber.java
 │   │   │   └── interfaces/
 │   │   │       ├── mcp/                     # MCP server
-│   │   │       │   ├── OrchestrationTools.java     # 11 MCP tools
+│   │   │       │   ├── OrchestrationTools.java     # 21 MCP tools
 │   │   │       │   ├── OrchestrationResources.java # 5 MCP resources
 │   │   │       │   └── OrchestrationPrompts.java   # 3 MCP prompts
 │   │   │       └── rest/                    # REST controllers
@@ -1134,13 +1134,16 @@ curl -X POST http://localhost:8080/api/v1/process-instances/{id}/execute \
 
 ### Orchestration API
 
-The **Orchestration API** provides autonomous process execution where the orchestrator takes full control, automatically navigating the graph and executing eligible nodes based on policy enforcement.
+The **Orchestration API** provides event-driven process execution where the orchestrator takes full control, navigating the graph and executing eligible nodes based on policy enforcement. The orchestrator is completely event-driven - each step executes at most one node.
 
 | Method | Endpoint | Description |
 |--------|----------|-------------|
 | POST | `/orchestration/start` | Start orchestrated process |
 | GET | `/orchestration/{instanceId}` | Get orchestration status |
+| POST | `/orchestration/{instanceId}/step` | Execute a single orchestration step |
 | POST | `/orchestration/{instanceId}/signal` | Signal event to orchestrator |
+| GET | `/orchestration/{instanceId}/available-events` | Get events that can be sent with payloads |
+| POST | `/orchestration/{instanceId}/send-event/{eventType}` | Send event with auto-populated payload |
 | POST | `/orchestration/{instanceId}/suspend` | Suspend orchestration |
 | POST | `/orchestration/{instanceId}/resume` | Resume orchestration |
 | POST | `/orchestration/{instanceId}/cancel` | Cancel orchestration |
@@ -1268,6 +1271,118 @@ Cancels the orchestration and marks the process instance as failed.
 curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/cancel
 ```
 
+#### Step Orchestration
+
+Execute a single orchestration step. The orchestrator is completely event-driven - each call executes at most one node.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/step
+```
+
+**Response:**
+
+```json
+{
+  "instanceId": "87e5a6a7-ec80-418a-a16c-1f01b7203808",
+  "processGraphId": "employee-onboarding",
+  "status": "RUNNING",
+  "isActive": true,
+  "lastDecision": {
+    "type": "PROCEED",
+    "selectedNodes": ["background-check-init"],
+    "selectionReason": "Selected single eligible action"
+  }
+}
+```
+
+#### Get Available Events
+
+Get events that can be sent to progress the workflow, including auto-populated payloads.
+
+```bash
+curl http://localhost:8080/api/v1/orchestration/{instanceId}/available-events
+```
+
+**Response:**
+
+```json
+{
+  "instanceId": "87e5a6a7-ec80-418a-a16c-1f01b7203808",
+  "instanceStatus": "RUNNING",
+  "availableEvents": [
+    {
+      "eventType": "BackgroundCheckCompleted",
+      "targetNode": "Equipment Procurement",
+      "edgeName": "background-passed",
+      "description": "Signals that background check has completed successfully",
+      "payload": {
+        "status": "COMPLETED",
+        "passed": true,
+        "requiresReview": false,
+        "timestamp": "2026-02-08T12:00:00Z"
+      }
+    }
+  ]
+}
+```
+
+#### Send Event
+
+Send an event with auto-populated payload to progress the workflow.
+
+```bash
+curl -X POST http://localhost:8080/api/v1/orchestration/{instanceId}/send-event/BackgroundCheckCompleted
+```
+
+**Response:**
+
+```json
+{
+  "instanceId": "87e5a6a7-ec80-418a-a16c-1f01b7203808",
+  "eventType": "BackgroundCheckCompleted",
+  "payload": {
+    "status": "COMPLETED",
+    "passed": true,
+    "requiresReview": false,
+    "timestamp": "2026-02-08T12:00:00Z"
+  },
+  "sent": true,
+  "instanceStatus": "RUNNING",
+  "isActive": true
+}
+```
+
+#### Event-Driven Workflow Pattern
+
+The orchestrator follows an event-driven pattern. To progress through a workflow:
+
+1. **Start** the orchestration with `POST /orchestration/start`
+2. **Step** through the workflow with `POST /orchestration/{id}/step` (executes one node at a time)
+3. **Check available events** with `GET /orchestration/{id}/available-events` when waiting for events
+4. **Send events** with `POST /orchestration/{id}/send-event/{eventType}` to trigger edge transitions
+5. **Repeat steps 2-4** until the process completes
+
+**Example Workflow:**
+
+```bash
+# Start orchestration
+curl -X POST http://localhost:8080/api/v1/orchestration/start \
+  -H "Content-Type: application/json" \
+  -d '{"processGraphId": "employee-onboarding", "domainContext": {...}}'
+
+# Step through initial nodes
+curl -X POST http://localhost:8080/api/v1/orchestration/{id}/step
+
+# Check what events can progress the workflow
+curl http://localhost:8080/api/v1/orchestration/{id}/available-events
+
+# Send an event to trigger a transition
+curl -X POST http://localhost:8080/api/v1/orchestration/{id}/send-event/BackgroundCheckCompleted
+
+# Continue stepping
+curl -X POST http://localhost:8080/api/v1/orchestration/{id}/step
+```
+
 ### Health Check
 
 ```bash
@@ -1309,23 +1424,50 @@ spring:
         type: SYNC
 ```
 
-### MCP Tools (11)
+### MCP Tools (21)
 
-Tools are callable functions that AI clients can invoke to interact with the orchestration engine.
+Tools are callable functions that AI clients can invoke to interact with the orchestration engine. The orchestrator is completely event-driven - each step executes at most one node.
+
+#### Process Graph Tools
 
 | Tool | Description | Parameters |
 |------|-------------|------------|
 | `list_process_graphs` | List all published process graphs | — |
 | `get_process_graph` | Get a process graph by ID with full structure including nodes and edges | `graphId` (required) |
 | `validate_process_graph` | Validate a process graph's structural integrity and return any errors | `graphId` (required) |
+| `get_graph_nodes` | Get all nodes in a process graph with full details | `graphId` (required) |
+| `get_graph_edges` | Get all edges in a process graph with full details | `graphId` (required) |
+| `get_node_details` | Get full details of a specific node | `graphId` (required), `nodeId` (required) |
+| `get_edge_details` | Get full details of a specific edge | `graphId` (required), `edgeId` (required) |
+
+#### Orchestration Control Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
 | `start_orchestration` | Start autonomous orchestration of a process graph | `processGraphId` (required), `clientContext` (JSON), `domainContext` (JSON) |
 | `get_orchestration_status` | Get current orchestration status for a process instance | `instanceId` (required) |
-| `signal_event` | Signal an event to trigger orchestrator reevaluation | `instanceId` (required), `eventType` (required), `nodeId`, `payload` (JSON) |
+| `step_orchestration` | Execute a single orchestration step (at most one node) | `instanceId` (required) |
 | `suspend_orchestration` | Pause orchestration of a running process instance | `instanceId` (required) |
 | `resume_orchestration` | Resume a suspended orchestration | `instanceId` (required) |
 | `cancel_orchestration` | Cancel orchestration of a process instance | `instanceId` (required) |
+
+#### Event-Driven Workflow Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
+| `signal_event` | Signal an event to trigger orchestrator reevaluation | `instanceId` (required), `eventType` (required), `nodeId`, `payload` (JSON) |
+| `get_required_events` | Analyze what events are needed to progress a process instance | `instanceId` (required) |
+| `get_available_events` | Get events that can be sent with auto-populated payloads | `instanceId` (required) |
+| `send_event` | Send an event with auto-populated payload to progress workflow | `instanceId` (required), `eventType` (required) |
+
+#### Instance Inspection Tools
+
+| Tool | Description | Parameters |
+|------|-------------|------------|
 | `list_process_instances` | List running process instances with optional filters | `processGraphId`, `status`, `correlationId` |
 | `get_available_nodes` | Get nodes eligible for execution in a process instance | `instanceId` (required) |
+| `get_active_nodes` | Get currently active (executing) nodes for a process instance | `instanceId` (required) |
+| `get_process_history` | Get execution history showing all node executions | `instanceId` (required) |
 
 ### MCP Resources (5)
 

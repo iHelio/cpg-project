@@ -7,7 +7,7 @@ An enterprise-grade, action-oriented process execution engine built with Java 21
 - **Process Execution Engine** — Node/edge evaluation with FEEL expressions and DMN decision tables
 - **Policy-Enforcing Orchestrator** — Autonomous navigation with idempotency, authorization, and policy gate enforcement
 - **Immutable Decision Traces** — Complete audit trail of every orchestration decision
-- **MCP Server** — Model Context Protocol server exposing 11 tools, 5 resources, and 3 prompts for AI client orchestration access
+- **MCP Server** — Model Context Protocol server exposing 21 tools, 5 resources, and 3 prompts for AI client orchestration access
 - **REST API** — Full REST API for process graph management, instance execution, and orchestration control
 - **Event-Driven** — Event correlation and reactive edge traversal with reevaluation
 
@@ -52,4 +52,5 @@ curl -s -N http://localhost:8080/sse
 
 ## Documentation
 
-See [docs/SYSTEM_DOCUMENTATION.md](docs/SYSTEM_DOCUMENTATION.md) for full system documentation including architecture, domain model, API reference, and examples.
+- [System Documentation](docs/SYSTEM_DOCUMENTATION.md) — Architecture, domain model, API reference, and examples
+- [MCP Tools Guide](docs/MCP_TOOLS_GUIDE.md) — Guide for AI clients using MCP tools for workflow automation
