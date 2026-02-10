@@ -1,0 +1,60 @@
+# =============================================================================
+# CPG MCP Server - Docker Compose for Local Development
+# =============================================================================
+# Start:   docker compose up -d
+# Stop:    docker compose down
+# Logs:    docker compose logs -f cpg-mcp
+# Rebuild: docker compose up -d --build
+# =============================================================================
+
+services:
+  cpg-mcp:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: cpg-mcp:latest
+    container_name: cpg-mcp
+    ports:
+      - "8080:8080"
+    environment:
+      # MCP Server configuration
+      - CPG_MCP_ENABLED=true
+      # Spring profiles
+      - SPRING_PROFILES_ACTIVE=docker
+      # JVM memory settings (optional override)
+      - JAVA_OPTS=-XX:MaxRAMPercentage=75.0 -XX:+UseG1GC
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/actuator/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 60s
+    restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          memory: 1G
+          cpus: '2'
+        reservations:
+          memory: 512M
+          cpus: '0.5'
+
+  # Optional: Development with hot reload (mount source)
+  cpg-mcp-dev:
+    profiles:
+      - dev
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: builder
+    container_name: cpg-mcp-dev
+    ports:
+      - "8080:8080"
+    volumes:
+      - ./src:/build/src:ro
+      - ./pom.xml:/build/pom.xml:ro
+    command: ./mvnw spring-boot:run
+    environment:
+      - SPRING_PROFILES_ACTIVE=dev
+      - CPG_MCP_ENABLED=true

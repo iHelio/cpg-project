@@ -1,0 +1,15 @@
+{
+  "mcpServers": {
+    "cpg-orchestration": {
+      "command": "docker",
+      "args": [
+        "run",
+        "--rm",
+        "-p", "8080:8080",
+        "--name", "cpg-mcp",
+        "cpg-mcp:latest"
+      ],
+      "env": {}
+    }
+  }
+}

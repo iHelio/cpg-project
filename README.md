@@ -13,6 +13,24 @@ An enterprise-grade, action-oriented process execution engine built with Java 21
 
 ## Quick Start
 
+### Using Docker (Recommended)
+
+```bash
+# Build and start with Docker Compose
+docker compose up -d
+
+# Check health
+curl http://localhost:8080/actuator/health
+
+# View logs
+docker logs -f cpg-mcp
+
+# Stop
+docker compose down
+```
+
+### Using Maven
+
 ```bash
 # Compile
 ./mvnw clean compile
@@ -30,6 +48,37 @@ kill $(lsof -ti:8080)
 # Check if the application is running
 curl -s http://localhost:8080/actuator/health | python3 -m json.tool
 ```
+
+## MCP App for Claude Desktop
+
+Connect Claude Desktop to CPG for AI-powered workflow orchestration.
+
+### Quick Install
+
+```bash
+# Build Docker image
+docker build -t cpg-mcp .
+
+# Start server
+docker run -d -p 8080:8080 --name cpg-mcp cpg-mcp:latest
+```
+
+### Configure Claude Desktop
+
+Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS):
+
+```json
+{
+  "mcpServers": {
+    "cpg-orchestration": {
+      "url": "http://localhost:8080/sse",
+      "transport": "sse"
+    }
+  }
+}
+```
+
+See [MCP App Installation Guide](docs/MCP_APP_INSTALLATION.md) for detailed setup instructions.
 
 ## Common Commands
 
