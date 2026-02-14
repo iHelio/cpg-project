@@ -31,6 +31,14 @@ The CPG orchestrator is **completely event-driven**. Events are the primary mech
 | **Domain Events** | Business process signals from external systems | `BackgroundCheckCompleted`, `EquipmentReady` |
 | **System Events** | Orchestration control signals | `NODE_COMPLETED`, `APPROVAL` |
 
+### Pre-loaded Workflows
+
+| Workflow | ID | Domain Events |
+|----------|-----|---------------|
+| **Employee Onboarding** | `employee-onboarding` | 9 events (background check, equipment, documents, I9, orientation) |
+| **Expense Approval** | `expense-approval` | 5 events (submit, validate, manager, finance, payment) |
+| **Document Review** | `document-review` | 6 events (upload, scan, assign, review, revision, publish) |
+
 ---
 
 ## Event-Driven Architecture
@@ -309,6 +317,222 @@ Domain events represent business process signals, typically from external system
 **Guard Conditions:**
 - `orientation.scheduled = true` - Orientation scheduled
 - Also requires: `accounts.created`, `documents.collected`, `backgroundCheck.passed`
+
+---
+
+### Expense Approval Events
+
+#### ExpenseSubmitted
+
+**Description:** Signals that an expense report has been submitted.
+
+**Triggers Edge:** `submit-to-validate` (Submit → Validate)
+
+**Payload:**
+```json
+{
+  "expenseId": "EXP-1707486900000",
+  "amount": 7500.00,
+  "category": "travel",
+  "submitted": true,
+  "timestamp": "2026-02-09T10:00:00Z"
+}
+```
+
+---
+
+#### ExpenseValidated
+
+**Description:** Signals that expense validation is complete.
+
+**Triggers Edge:** `validate-to-manager` (Validate → Manager Approval)
+
+**Payload:**
+```json
+{
+  "validated": true,
+  "category": "travel",
+  "requiresFinanceReview": true,
+  "timestamp": "2026-02-09T10:05:00Z"
+}
+```
+
+---
+
+#### ManagerDecision
+
+**Description:** Signals manager approval or rejection of expense.
+
+**Triggers Edges:**
+- If `managerApproved = true` and `amount >= 5000`: → Finance Review
+- If `managerApproved = true` and `amount < 5000`: → Process Payment
+- If `managerApproved = false`: → Expense Rejected
+
+**Payload:**
+```json
+{
+  "managerApproved": true,
+  "approver": "manager@company.com",
+  "comments": "Approved for business travel",
+  "timestamp": "2026-02-09T11:00:00Z"
+}
+```
+
+---
+
+#### FinanceDecision
+
+**Description:** Signals finance team approval or rejection.
+
+**Triggers Edges:**
+- If `financeApproved = true`: → Process Payment
+- If `financeApproved = false`: → Expense Rejected
+
+**Payload:**
+```json
+{
+  "financeApproved": true,
+  "approver": "finance@company.com",
+  "budgetCode": "TRAVEL-2026-Q1",
+  "timestamp": "2026-02-09T12:00:00Z"
+}
+```
+
+---
+
+#### PaymentProcessed
+
+**Description:** Signals that reimbursement payment has been processed.
+
+**Triggers Edge:** `payment-to-approved` (Process Payment → Expense Approved)
+
+**Payload:**
+```json
+{
+  "processed": true,
+  "paymentMethod": "direct_deposit",
+  "paymentDate": "2026-02-11",
+  "timestamp": "2026-02-09T14:00:00Z"
+}
+```
+
+---
+
+### Document Review Events
+
+#### DocumentUploaded
+
+**Description:** Signals that a document has been uploaded for review.
+
+**Triggers Edge:** `upload-to-scan` (Upload → Scan)
+
+**Payload:**
+```json
+{
+  "documentId": "DOC-1707486900000",
+  "filename": "policy-update.pdf",
+  "size": 245678,
+  "uploaded": true,
+  "timestamp": "2026-02-09T09:00:00Z"
+}
+```
+
+---
+
+#### ScanCompleted
+
+**Description:** Signals that automated document scan is complete.
+
+**Triggers Edges:**
+- If `passed = true`: `scan-to-assign` → Assign Reviewer
+- If `passed = false`: `scan-to-rejected` → Document Rejected
+
+**Payload:**
+```json
+{
+  "passed": true,
+  "classification": "policy",
+  "malwareDetected": false,
+  "complianceIssues": [],
+  "timestamp": "2026-02-09T09:05:00Z"
+}
+```
+
+---
+
+#### ReviewerAssigned
+
+**Description:** Signals that a reviewer has been assigned.
+
+**Triggers Edge:** `assign-to-review` (Assign → Review)
+
+**Payload:**
+```json
+{
+  "assigned": true,
+  "reviewer": "reviewer@company.com",
+  "dueDate": "2026-02-12",
+  "timestamp": "2026-02-09T09:10:00Z"
+}
+```
+
+---
+
+#### ReviewDecision
+
+**Description:** Signals the reviewer's decision on the document.
+
+**Triggers Edges:**
+- If `decision = "APPROVED"`: → Publish Document
+- If `decision = "REVISION_REQUIRED"` and revisions < 3: → Request Revision
+- If `decision = "REVISION_REQUIRED"` and revisions >= 3: → Document Rejected
+- If `decision = "REJECTED"`: → Document Rejected
+
+**Payload:**
+```json
+{
+  "decision": "APPROVED",
+  "reviewer": "reviewer@company.com",
+  "comments": "Document meets all guidelines",
+  "timestamp": "2026-02-09T15:00:00Z"
+}
+```
+
+---
+
+#### RevisionSubmitted
+
+**Description:** Signals that the author has submitted a revision.
+
+**Triggers Edge:** `revision-to-review` (Request Revision → Review)
+
+**Payload:**
+```json
+{
+  "submitted": true,
+  "revisionNumber": 1,
+  "changesDescription": "Updated formatting and fixed typos",
+  "timestamp": "2026-02-10T10:00:00Z"
+}
+```
+
+---
+
+#### DocumentPublished
+
+**Description:** Signals that the document has been published.
+
+**Triggers Edge:** `publish-to-approved` (Publish → Document Approved)
+
+**Payload:**
+```json
+{
+  "published": true,
+  "publishLocation": "policies/2026/q1",
+  "version": "1.0",
+  "timestamp": "2026-02-09T16:00:00Z"
+}
+```
 
 ---
 

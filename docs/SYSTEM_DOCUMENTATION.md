@@ -193,7 +193,9 @@ cpg/
 │   │   │   │   └── exception/                # Domain exceptions
 │   │   │   ├── application/
 │   │   │   │   ├── handler/                  # Action handler registry
-│   │   │   │   ├── onboarding/               # Onboarding process builder
+│   │   │   │   ├── onboarding/               # Employee onboarding workflow (12 nodes, 18 edges)
+│   │   │   │   ├── expense/                  # Expense approval workflow (7 nodes, 9 edges)
+│   │   │   │   ├── document/                 # Document review workflow (8 nodes, 10 edges)
 │   │   │   │   └── orchestration/            # Process orchestrator
 │   │   │   │       ├── ContextAssembler.java # Builds RuntimeContext
 │   │   │   │       ├── EligibilityEvaluator.java # Builds EligibleSpace
@@ -1493,11 +1495,23 @@ Prompts are pre-built templates that help AI clients perform common analysis tas
 
 ---
 
+## Pre-loaded Example Workflows
+
+The system includes three pre-loaded example workflows that are initialized on application startup.
+
+| Workflow | ID | Nodes | Edges | Description |
+|----------|-----|-------|-------|-------------|
+| **Employee Onboarding** | `employee-onboarding` | 12 | 18 | Full onboarding with background check, IT provisioning, HR docs |
+| **Expense Approval** | `expense-approval` | 7 | 9 | Multi-level approval with finance review for amounts >= $5000 |
+| **Document Review** | `document-review` | 8 | 10 | Upload, scan, review with revision loop and publication |
+
+---
+
 ## Example: Employee Onboarding
 
 ### Process Overview
 
-The system includes a complete employee onboarding process as a reference implementation.
+The employee onboarding workflow is a comprehensive reference implementation demonstrating parallel execution, event-driven transitions, and policy enforcement.
 
 ```
     ┌─────────────────┐
@@ -1591,6 +1605,132 @@ for (Node.NodeId activeId : instance.activeNodeIds()) {
 
 ---
 
+## Example: Expense Approval
+
+### Process Overview
+
+The expense approval workflow demonstrates multi-level approval with conditional routing based on expense amount.
+
+```
+┌───────────────┐
+│ Submit Expense│ (Entry Point)
+└───────┬───────┘
+        │
+        ▼
+┌───────────────┐
+│   Validate    │
+└───────┬───────┘
+        │ expense.validated = true
+        ▼
+┌───────────────┐
+│   Manager     │
+│   Approval    │
+└───────┬───────┘
+        │
+   ┌────┴─────────────────┐
+   │                      │
+   ▼                      ▼
+amount >= $5000      amount < $5000
+   │                      │
+   ▼                      │
+┌───────────────┐         │
+│   Finance     │         │
+│   Review      │         │
+└───────┬───────┘         │
+        │                 │
+        └────────┬────────┘
+                 │
+                 ▼
+        ┌───────────────┐
+        │Process Payment│
+        └───────┬───────┘
+                │
+                ▼
+        ┌───────────────┐
+        │   Approved    │ (Terminal)
+        └───────────────┘
+```
+
+### Process Components
+
+**Nodes (7 total):**
+- `submit-expense` - Entry point: employee submits expense
+- `validate-expense` - Validate completeness and policy compliance
+- `manager-approval` - Direct manager reviews and approves
+- `finance-review` - Finance reviews high-value expenses ($5000+)
+- `process-payment` - Submit reimbursement to payroll
+- `expense-approved` - Success terminal
+- `expense-rejected` - Failure terminal
+
+**Key Features:**
+- Amount-based routing ($5000 threshold for finance review)
+- Rejection paths at each approval stage
+- Auto-populated event payloads for approval decisions
+
+---
+
+## Example: Document Review
+
+### Process Overview
+
+The document review workflow demonstrates automated scanning, reviewer assignment, and a revision loop with maximum retry limit.
+
+```
+┌───────────────┐
+│Upload Document│ (Entry Point)
+└───────┬───────┘
+        │
+        ▼
+┌───────────────┐
+│     Scan      │──scan.failed──► Rejected
+└───────┬───────┘
+        │ scan.passed = true
+        ▼
+┌───────────────┐
+│Assign Reviewer│
+└───────┬───────┘
+        │
+        ▼
+┌───────────────┐
+│Review Document│◄────────────────┐
+└───────┬───────┘                 │
+        │                         │
+   ┌────┼────────────────┐        │
+   │    │                │        │
+   ▼    ▼                ▼        │
+APPROVED  REJECTED  REVISION_REQ  │
+   │                     │        │
+   ▼                     ▼        │
+┌───────────────┐   ┌───────────┐ │
+│    Publish    │   │  Request  │─┘
+└───────┬───────┘   │  Revision │ (max 3)
+        │           └───────────┘
+        ▼
+┌───────────────┐
+│   Approved    │ (Terminal)
+└───────────────┘
+```
+
+### Process Components
+
+**Nodes (8 total):**
+- `upload-document` - Entry point: author uploads document
+- `scan-document` - Automated compliance and security scan
+- `assign-reviewer` - Assign reviewer based on document type
+- `review-document` - Reviewer evaluates and decides
+- `request-revision` - Author addresses reviewer feedback
+- `publish-document` - Publish to repository
+- `document-approved` - Success terminal
+- `document-rejected` - Failure terminal
+
+**Key Features:**
+- Automated security/compliance scanning
+- Reviewer assignment based on document classification
+- Revision loop with maximum 3 attempts
+- SLA-based escalation for overdue reviews
+
+---
+
 ## Build and Test
 
 ### Maven Commands
@@ -1637,7 +1777,7 @@ The project requires 80% line coverage (enforced by JaCoCo):
 | `interfaces.mcp` | 38 tests (OrchestrationTools, Resources, Prompts) |
 | `integration` | End-to-end onboarding test |
 
-**Total: 250 tests**
+**Total: 265 tests**
 
 ---
 

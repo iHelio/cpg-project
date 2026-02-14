@@ -114,12 +114,30 @@ List all published process graphs.
 [
   {
     "id": "employee-onboarding",
-    "name": "Employee Onboarding Process",
-    "description": "Complete onboarding workflow",
+    "name": "Employee Onboarding",
+    "description": "Full onboarding with background check, IT provisioning, HR docs",
     "version": 1,
     "status": "PUBLISHED",
     "nodeCount": 12,
     "edgeCount": 18
+  },
+  {
+    "id": "expense-approval",
+    "name": "Expense Approval",
+    "description": "Multi-level expense approval with finance review for high amounts",
+    "version": 1,
+    "status": "PUBLISHED",
+    "nodeCount": 7,
+    "edgeCount": 9
+  },
+  {
+    "id": "document-review",
+    "name": "Document Review",
+    "description": "Document review workflow with scanning, review, and revision loop",
+    "version": 1,
+    "status": "PUBLISHED",
+    "nodeCount": 8,
+    "edgeCount": 10
   }
 ]
 ```
@@ -443,6 +461,65 @@ Get execution history for a process instance showing all node executions.
 
 3. get_active_nodes(instanceId)
    → See which nodes are currently executing
+```
+
+### Expense Approval Workflow
+
+```
+1. start_orchestration(processGraphId="expense-approval",
+   domainContext={"expense": {"amount": 7500, "submitted": true}})
+   → Returns instanceId
+
+2. step_orchestration(instanceId)
+   → Executes "Submit Expense" node
+
+3. step_orchestration(instanceId)
+   → Executes "Validate Expense" node
+   → Returns WAITING (waiting for manager decision)
+
+4. send_event(instanceId, eventType="ManagerDecision")
+   → Manager approves the expense
+
+5. step_orchestration(instanceId)
+   → Routes to "Finance Review" (amount >= $5000)
+   → Returns WAITING (waiting for finance decision)
+
+6. send_event(instanceId, eventType="FinanceDecision")
+   → Finance approves
+
+7. step_orchestration(instanceId)
+   → Executes "Process Payment" → "Expense Approved"
+```
+
+### Document Review Workflow
+
+```
+1. start_orchestration(processGraphId="document-review",
+   domainContext={"document": {"uploaded": true, "classification": "policy"}})
+   → Returns instanceId
+
+2. step_orchestration(instanceId)
+   → Executes "Upload Document" node
+
+3. step_orchestration(instanceId)
+   → Executes "Scan Document" node
+   → Returns WAITING (waiting for scan result)
+
+4. send_event(instanceId, eventType="ScanCompleted")
+   → Scan passes
+
+5. step_orchestration(instanceId)
+   → Executes "Assign Reviewer" node
+
+6. step_orchestration(instanceId)
+   → Executes "Review Document" node
+   → Returns WAITING (waiting for review decision)
+
+7. send_event(instanceId, eventType="ReviewDecision")
+   → Reviewer approves
+
+8. step_orchestration(instanceId)
+   → Executes "Publish Document" → "Document Approved"
 ```
 
 ### Handling Workflow Blockages
