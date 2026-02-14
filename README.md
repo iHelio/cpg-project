@@ -35,7 +35,7 @@ docker compose down
 # Compile
 ./mvnw clean compile
 
-# Run all tests (250 tests)
+# Run all tests (265 tests)
 ./mvnw test
 
 # Start the application (port 8080)
@@ -99,10 +99,27 @@ See [MCP App Installation Guide](docs/MCP_APP_INSTALLATION.md) for detailed setu
 curl -s -N http://localhost:8080/sse
 ```
 
+## Pre-loaded Workflows
+
+Three example process graphs are loaded on startup:
+
+| Workflow | ID | Nodes | Edges | Description |
+|----------|-----|-------|-------|-------------|
+| **Employee Onboarding** | `employee-onboarding` | 12 | 18 | Full onboarding with background check, IT provisioning, HR docs |
+| **Expense Approval** | `expense-approval` | 7 | 9 | Multi-level approval with finance review for amounts >= $5000 |
+| **Document Review** | `document-review` | 8 | 10 | Upload, scan, review with revision loop and publication |
+
+Try them with MCP:
+```
+list_process_graphs
+start_orchestration employee-onboarding
+```
+
 ## Documentation
 
 - [System Documentation](docs/SYSTEM_DOCUMENTATION.md) — Architecture, domain model, API reference, and examples
 - [MCP Tools Guide](docs/MCP_TOOLS_GUIDE.md) — Guide for AI clients using MCP tools for workflow automation
+- [MCP App Installation](docs/MCP_APP_INSTALLATION.md) — Docker and Claude Desktop setup
 - [Skills Reference](docs/SKILLS_REFERENCE.md) — Claude Code skills for interactive workflow automation
 - [Events Reference](docs/EVENTS_REFERENCE.md) — Complete event catalog with payloads and flow diagrams
 
