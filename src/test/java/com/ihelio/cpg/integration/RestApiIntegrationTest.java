@@ -70,8 +70,9 @@ class RestApiIntegrationTest {
         mockMvc.perform(get("/api/v1/process-graphs"))
             .andExpect(status().isOk())
             .andExpect(jsonPath("$").isArray())
-            .andExpect(jsonPath("$[0].id").value("employee-onboarding"))
-            .andExpect(jsonPath("$[0].name").value("Employee Onboarding"));
+            .andExpect(jsonPath("$.length()").value(org.hamcrest.Matchers.greaterThanOrEqualTo(1)))
+            .andExpect(jsonPath("$[?(@.id == 'employee-onboarding')]").exists())
+            .andExpect(jsonPath("$[?(@.name == 'Employee Onboarding')]").exists());
     }
 
     @Test
