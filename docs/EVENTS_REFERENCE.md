@@ -35,7 +35,7 @@ The CPG orchestrator is **completely event-driven**. Events are the primary mech
 
 | Workflow | ID | Domain Events |
 |----------|-----|---------------|
-| **Employee Onboarding** | `employee-onboarding` | 9 events (background check, equipment, documents, I9, orientation) |
+| **Employee Onboarding** | `employee-onboarding` | 11 events (background check, AI analysis, equipment, documents, I9, orientation) |
 | **Expense Approval** | `expense-approval` | 5 events (submit, validate, manager, finance, payment) |
 | **Document Review** | `document-review` | 6 events (upload, scan, assign, review, revision, publish) |
 
@@ -131,11 +131,8 @@ Domain events represent business process signals, typically from external system
 
 **Description:** Signals that the background check has completed successfully.
 
-**Triggers Edges:**
-- `bgcheck-to-equipment` → Order Equipment (parallel)
-- `bgcheck-to-accounts` → Create Accounts (parallel)
-- `bgcheck-to-documents` → Collect Documents (parallel)
-- `bgcheck-to-review` → Review Background Results (if `requiresReview=true`)
+**Triggers Edge:**
+- `bgcheck-to-ai-analysis` → AI Analyze Background Check
 
 **Payload:**
 ```json
@@ -149,12 +146,61 @@ Domain events represent business process signals, typically from external system
 
 **Guard Conditions Using This Payload:**
 - `backgroundCheck.status = "COMPLETED"` - Check completed
-- `backgroundCheck.passed = true` - Check passed
-- `backgroundCheck.requiresReview = true` - Needs HR review
 
 **Routing Logic:**
-- If `requiresReview = true` → Routes to HR Review node
-- If `requiresReview = false` and `passed = true` → Routes to 3 parallel branches
+- Routes to AI analysis node for risk assessment
+
+---
+
+#### AiAnalysisStarted
+
+**Description:** Signals that AI-powered background check analysis has begun.
+
+**Emitted By:** AI Analyze Background Check node (ON_START)
+
+**Payload:**
+```json
+{
+  "timestamp": "2026-02-09T12:16:00Z",
+  "source": "aiBackgroundAnalyst"
+}
+```
+
+---
+
+#### AiAnalysisCompleted
+
+**Description:** Signals that AI analysis of background check is complete with recommendation.
+
+**Triggers Edges:**
+- `ai-analysis-to-review` → Review Background Results (if `requiresReview=true`)
+- `ai-analysis-to-equipment` → Order Equipment (parallel, if `passed=true`)
+- `ai-analysis-to-accounts` → Create Accounts (parallel, if `passed=true`)
+- `ai-analysis-to-documents` → Collect Documents (parallel, if `passed=true`)
+
+**Payload:**
+```json
+{
+  "riskScore": 15,
+  "summary": "Clean background check with no adverse findings",
+  "keyFindings": ["Verified employment", "Clean criminal record"],
+  "recommendation": "APPROVE",
+  "rationale": "All checks passed without issues",
+  "requiresReview": false,
+  "passed": true,
+  "timestamp": "2026-02-09T12:16:30Z"
+}
+```
+
+**Guard Conditions Using This Payload:**
+- `aiAnalysis.requiresReview = true` - AI recommends HR review (score > 30 or REVIEW/REJECT)
+- `aiAnalysis.passed = true` - AI approved with low risk (score ≤ 30 and APPROVE)
+- `aiAnalysis.riskScore` - Numeric risk score 0-100
+- `aiAnalysis.recommendation` - APPROVE, REVIEW, or REJECT
+
+**Routing Logic:**
+- If `recommendation = "APPROVE"` AND `riskScore ≤ 30` → Skip HR review, routes to 3 parallel branches
+- If `recommendation = "REVIEW"` OR `recommendation = "REJECT"` OR `riskScore > 30` → Routes to HR Review
 
 ---
 
@@ -684,28 +730,39 @@ System events are used for orchestration control and node lifecycle management.
                                              │                  │
                  ┌───────────────────────────┼───────────────────────────┐
                  │                           │                           │
-        BackgroundCheck              BackgroundCheck             BackgroundCheck
-           Failed                    Completed                   Completed
-             │                    (requiresReview=true)      (requiresReview=false)
-             │                           │                           │
-             ▼                           ▼                           │
-      ┌───────────┐             ┌─────────────────┐                 │
-      │ CANCELLED │             │ Review          │                 │
-      └───────────┘             │ Background      │                 │
-                                └────────┬────────┘                 │
-                                         │                           │
-                    ┌────────────────────┼────────────────────┐     │
-                    │                    │                    │     │
-           BackgroundReview      BackgroundReview             │     │
-           Completed             Completed                    │     │
-           (decision=REJECTED)   (decision=APPROVED)          │     │
-                    │                    │                    │     │
-                    ▼                    └────────────────────┼─────┘
-             ┌───────────┐                                    │
-             │ CANCELLED │                                    │
-             └───────────┘                                    │
-                                                              │
-                         ┌────────────────────────────────────┼────────────────────────────────────┐
+        BackgroundCheck              BackgroundCheck                     │
+           Failed                      Completed                         │
+             │                           │                               │
+             ▼                           ▼                               │
+      ┌───────────┐            ┌─────────────────┐                       │
+      │ CANCELLED │            │ AI Analyze      │                       │
+      └───────────┘            │ Background      │                       │
+                               │ (AGENT_ASSISTED)│                       │
+                               └────────┬────────┘                       │
+                                        │                                │
+                 ┌──────────────────────┼────────────────────────┐      │
+                 │                      │                        │      │
+         AiAnalysisCompleted    AiAnalysisCompleted              │      │
+         (requiresReview=true)  (passed=true, score≤30)          │      │
+                 │                      │                        │      │
+                 ▼                      │                        │      │
+        ┌─────────────────┐             │                        │      │
+        │ Review          │             │                        │      │
+        │ Background      │             │                        │      │
+        └────────┬────────┘             │                        │      │
+                 │                      │                        │      │
+    ┌────────────┼────────────┐         │                        │      │
+    │            │            │         │                        │      │
+BackgroundReview  BackgroundReview      │                        │      │
+Completed         Completed             │                        │      │
+(decision=REJECTED) (decision=APPROVED) │                        │      │
+    │            │            │         │                        │      │
+    ▼            └────────────┼─────────┘                        │      │
+┌───────────┐                 │                                  │      │
+│ CANCELLED │                 │                                  │      │
+└───────────┘                 │                                  │      │
+                              │                                  │      │
+                         ┌────┴────────────────────────────────────┴──────┘
                          │                                    │                                    │
                          ▼                                    ▼                                    ▼
                 ┌─────────────────┐                  ┌─────────────────┐                  ┌─────────────────┐
@@ -781,21 +838,25 @@ System events are used for orchestration control and node lifecycle management.
 
 ### Happy Path (Minimum Events)
 
-For a successful onboarding with no review needed:
+For a successful onboarding with no review needed (AI auto-approves):
 
 ```
 1. OnboardingStarted          → Starts validation
 2. (auto)                     → Runs background check
-3. BackgroundCheckCompleted   → Starts 3 parallel branches
-4. EquipmentReady             → Enables shipping
-5. EquipmentShipped           → Equipment branch complete
-6. DocumentsCollected         → Enables I-9 verification
-7. I9Verified                 → Documents branch complete
-8. (accounts auto-complete)   → Accounts branch complete
-9. OrientationScheduled       → Finalizes onboarding
+3. BackgroundCheckCompleted   → Triggers AI analysis
+4. (auto)                     → AI analyzes and auto-approves (score ≤ 30)
+5. AiAnalysisCompleted        → Starts 3 parallel branches (skips HR review)
+6. EquipmentReady             → Enables shipping
+7. EquipmentShipped           → Equipment branch complete
+8. DocumentsCollected         → Enables I-9 verification
+9. I9Verified                 → Documents branch complete
+10. (accounts auto-complete)  → Accounts branch complete
+11. OrientationScheduled      → Finalizes onboarding
 ```
 
-**Total: 7 events for complete workflow**
+**Total: 8 events for complete workflow** (with AI auto-approval)
+
+**Note:** When AI recommends REVIEW or REJECT (or riskScore > 30), the flow routes to HR Review, requiring the `BackgroundReviewCompleted` event before proceeding.
 
 ---
 
@@ -806,7 +867,9 @@ For a successful onboarding with no review needed:
 | Event | Key Payload Fields | Used In Guard Conditions |
 |-------|-------------------|-------------------------|
 | `OnboardingStarted` | `timestamp`, `source` | — |
-| `BackgroundCheckCompleted` | `status`, `passed`, `requiresReview` | `backgroundCheck.status`, `backgroundCheck.passed`, `backgroundCheck.requiresReview` |
+| `BackgroundCheckCompleted` | `status`, `passed`, `requiresReview` | `backgroundCheck.status` |
+| `AiAnalysisStarted` | `timestamp`, `source` | — |
+| `AiAnalysisCompleted` | `riskScore`, `recommendation`, `requiresReview`, `passed` | `aiAnalysis.riskScore`, `aiAnalysis.recommendation`, `aiAnalysis.requiresReview`, `aiAnalysis.passed` |
 | `BackgroundCheckFailed` | `status`, `passed`, `reason` | `backgroundCheck.status` |
 | `BackgroundReviewCompleted` | `decision`, `reviewer`, `comments` | `backgroundReview.decision` |
 | `EquipmentReady` | `orderId`, `status`, `items[]` | `equipmentOrder.status` |
@@ -824,6 +887,7 @@ Event Type               →  Context Path
 ─────────────────────────────────────────
 BackgroundCheckCompleted →  backgroundCheck.*
 BackgroundCheckFailed    →  backgroundCheck.*
+AiAnalysisCompleted      →  aiAnalysis.*
 BackgroundReviewCompleted→  backgroundReview.*
 EquipmentReady           →  equipmentOrder.*
 EquipmentShipped         →  equipment.*

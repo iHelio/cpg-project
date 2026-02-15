@@ -16,6 +16,7 @@
 
 package com.ihelio.cpg.application.onboarding;
 
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.AI_ANALYZE_BACKGROUND;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.COLLECT_DOCUMENTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CREATE_ACCOUNTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.OFFER_ACCEPTED;
@@ -100,92 +101,116 @@ public final class OnboardingEdges {
     }
 
     // =========================================================================
-    // Background Check Paths
+    // Background Check to AI Analysis
     // =========================================================================
 
     /**
-     * Background check completed with adverse findings requires review.
+     * Background check completed - route to AI analysis.
      */
-    public static Edge backgroundCheckToReview() {
+    public static Edge backgroundCheckToAiAnalysis() {
         return new Edge(
-            new Edge.EdgeId("bgcheck-to-review"),
-            "Review Required",
-            "Route to HR review when background check has adverse findings",
+            new Edge.EdgeId("bgcheck-to-ai-analysis"),
+            "AI Analysis",
+            "Route completed background check to AI analysis",
             RUN_BACKGROUND_CHECK,
+            AI_ANALYZE_BACKGROUND,
+            GuardConditions.ofContext(List.of(
+                FeelExpression.of("backgroundCheck.status = \"COMPLETED\"")
+            )),
+            ExecutionSemantics.sequential(),
+            Priority.defaults(),
+            EventTriggers.activatedBy("BackgroundCheckCompleted"),
+            CompensationSemantics.none()
+        );
+    }
+
+    // =========================================================================
+    // AI Analysis Paths
+    // =========================================================================
+
+    /**
+     * AI analysis recommends review or risk score is high - route to HR review.
+     */
+    public static Edge aiAnalysisToReview() {
+        return new Edge(
+            new Edge.EdgeId("ai-analysis-to-review"),
+            "AI Review Required",
+            "Route to HR review when AI recommends review or risk is high",
+            AI_ANALYZE_BACKGROUND,
             REVIEW_BACKGROUND_RESULTS,
             GuardConditions.ofContext(List.of(
-                FeelExpression.of("backgroundCheck.status = \"COMPLETED\""),
-                FeelExpression.of("backgroundCheck.requiresReview = true")
+                FeelExpression.of("aiAnalysis.requiresReview = true")
             )),
             ExecutionSemantics.sequential(),
             Priority.high(),
-            EventTriggers.activatedBy("BackgroundCheckCompleted"),
+            EventTriggers.activatedBy("AiAnalysisCompleted"),
             CompensationSemantics.none()
         );
     }
 
     /**
-     * Background check passed - start parallel IT provisioning.
+     * AI analysis approved with low risk - proceed to equipment ordering.
      */
-    public static Edge backgroundCheckToOrderEquipment() {
+    public static Edge aiAnalysisToOrderEquipment() {
         return new Edge(
-            new Edge.EdgeId("bgcheck-to-equipment"),
-            "Order Equipment (Parallel)",
-            "Start equipment ordering after background check clears",
-            RUN_BACKGROUND_CHECK,
+            new Edge.EdgeId("ai-analysis-to-equipment"),
+            "AI Approved - Equipment",
+            "Start equipment ordering after AI approval",
+            AI_ANALYZE_BACKGROUND,
             ORDER_EQUIPMENT,
             GuardConditions.ofContext(List.of(
-                FeelExpression.of("backgroundCheck.status = \"COMPLETED\""),
-                FeelExpression.of("backgroundCheck.requiresReview = false or backgroundCheck.passed = true")
+                FeelExpression.of("aiAnalysis.passed = true")
             )),
             ExecutionSemantics.parallel(JoinType.ALL),
             Priority.defaults(),
-            EventTriggers.activatedBy("BackgroundCheckCompleted"),
+            EventTriggers.activatedBy("AiAnalysisCompleted"),
             CompensationSemantics.none()
         );
     }
 
     /**
-     * Background check passed - start account creation in parallel.
+     * AI analysis approved with low risk - proceed to account creation.
      */
-    public static Edge backgroundCheckToCreateAccounts() {
+    public static Edge aiAnalysisToCreateAccounts() {
         return new Edge(
-            new Edge.EdgeId("bgcheck-to-accounts"),
-            "Create Accounts (Parallel)",
-            "Start account provisioning after background check clears",
-            RUN_BACKGROUND_CHECK,
+            new Edge.EdgeId("ai-analysis-to-accounts"),
+            "AI Approved - Accounts",
+            "Start account provisioning after AI approval",
+            AI_ANALYZE_BACKGROUND,
             CREATE_ACCOUNTS,
             GuardConditions.ofContext(List.of(
-                FeelExpression.of("backgroundCheck.status = \"COMPLETED\""),
-                FeelExpression.of("backgroundCheck.requiresReview = false or backgroundCheck.passed = true")
+                FeelExpression.of("aiAnalysis.passed = true")
             )),
             ExecutionSemantics.parallel(JoinType.ALL),
             Priority.defaults(),
-            EventTriggers.activatedBy("BackgroundCheckCompleted"),
+            EventTriggers.activatedBy("AiAnalysisCompleted"),
             CompensationSemantics.none()
         );
     }
 
     /**
-     * Background check passed - start document collection in parallel.
+     * AI analysis approved with low risk - proceed to document collection.
      */
-    public static Edge backgroundCheckToCollectDocuments() {
+    public static Edge aiAnalysisToCollectDocuments() {
         return new Edge(
-            new Edge.EdgeId("bgcheck-to-documents"),
-            "Collect Documents (Parallel)",
-            "Start document collection after background check clears",
-            RUN_BACKGROUND_CHECK,
+            new Edge.EdgeId("ai-analysis-to-documents"),
+            "AI Approved - Documents",
+            "Start document collection after AI approval",
+            AI_ANALYZE_BACKGROUND,
             COLLECT_DOCUMENTS,
             GuardConditions.ofContext(List.of(
-                FeelExpression.of("backgroundCheck.status = \"COMPLETED\""),
-                FeelExpression.of("backgroundCheck.requiresReview = false or backgroundCheck.passed = true")
+                FeelExpression.of("aiAnalysis.passed = true")
             )),
             ExecutionSemantics.parallel(JoinType.ALL),
             Priority.defaults(),
-            EventTriggers.activatedBy("BackgroundCheckCompleted"),
+            EventTriggers.activatedBy("AiAnalysisCompleted"),
             CompensationSemantics.none()
         );
     }
+
+    // =========================================================================
+    // Background Review Paths (unchanged, triggered from AI review route)
+    // =========================================================================
 
     // =========================================================================
     // Background Review Paths
@@ -483,13 +508,16 @@ public final class OnboardingEdges {
             offerAcceptedToValidate(),
             validateToBackgroundCheck(),
 
-            // Background check paths
-            backgroundCheckToReview(),
-            backgroundCheckToOrderEquipment(),
-            backgroundCheckToCreateAccounts(),
-            backgroundCheckToCollectDocuments(),
+            // Background check to AI analysis
+            backgroundCheckToAiAnalysis(),
 
-            // Review paths
+            // AI analysis paths
+            aiAnalysisToReview(),
+            aiAnalysisToOrderEquipment(),
+            aiAnalysisToCreateAccounts(),
+            aiAnalysisToCollectDocuments(),
+
+            // Review paths (after AI recommends review)
             reviewToOrderEquipment(),
             reviewToCreateAccounts(),
             reviewToCollectDocuments(),

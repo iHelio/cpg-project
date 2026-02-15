@@ -33,8 +33,9 @@ import java.util.Map;
  *
  * <p>This builder assembles the complete onboarding workflow including:
  * <ul>
- *   <li>12 decision nodes covering validation, background check, IT setup, HR, and completion</li>
- *   <li>18 edges defining permissible transitions with FEEL guard conditions</li>
+ *   <li>13 decision nodes covering validation, background check, AI analysis, IT setup, HR, and completion</li>
+ *   <li>19 edges defining permissible transitions with FEEL guard conditions</li>
+ *   <li>AI-powered background check analysis for automated risk assessment</li>
  *   <li>Parallel execution paths for IT provisioning and HR documentation</li>
  *   <li>Compensation paths for cancellation scenarios</li>
  * </ul>

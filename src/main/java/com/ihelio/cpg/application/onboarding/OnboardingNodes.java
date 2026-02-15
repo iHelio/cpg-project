@@ -56,6 +56,7 @@ public final class OnboardingNodes {
     public static final NodeId OFFER_ACCEPTED = new NodeId("offer-accepted");
     public static final NodeId VALIDATE_CANDIDATE = new NodeId("validate-candidate");
     public static final NodeId RUN_BACKGROUND_CHECK = new NodeId("run-background-check");
+    public static final NodeId AI_ANALYZE_BACKGROUND = new NodeId("ai-analyze-background-check");
     public static final NodeId REVIEW_BACKGROUND_RESULTS = new NodeId("review-background-results");
     public static final NodeId ORDER_EQUIPMENT = new NodeId("order-equipment");
     public static final NodeId SHIP_EQUIPMENT = new NodeId("ship-equipment");
@@ -190,6 +191,47 @@ public final class OnboardingNodes {
                 List.of(
                     new EscalationRoute("PROVIDER_TIMEOUT", "escalate-to-hr", "hr.manager", 60)
                 )
+            )
+        );
+    }
+
+    /**
+     * AI-powered analysis of background check results.
+     *
+     * <p>Uses AI to evaluate background check findings and produce a risk
+     * assessment with recommendation. Low-risk approvals skip HR review.
+     */
+    public static Node aiAnalyzeBackgroundCheck() {
+        return new Node(
+            AI_ANALYZE_BACKGROUND,
+            "AI Analyze Background Check",
+            "AI analyzes background check results and provides risk assessment",
+            1,
+            new Preconditions(
+                List.of(),
+                List.of(FeelExpression.of("backgroundCheck.status = \"COMPLETED\""))
+            ),
+            List.of(),
+            List.of(),
+            new Action(
+                ActionType.AGENT_ASSISTED,
+                "aiBackgroundAnalyst",
+                "AI analyzes background check findings",
+                new ActionConfig(true, 120, 2, null, null)
+            ),
+            new EventConfig(
+                List.of(new EventSubscription("BackgroundCheckCompleted", null)),
+                List.of(
+                    new EventEmission("AiAnalysisStarted", EmissionTiming.ON_START, null),
+                    new EventEmission("AiAnalysisCompleted", EmissionTiming.ON_COMPLETE, null)
+                )
+            ),
+            new ExceptionRoutes(
+                List.of(
+                    new RemediationRoute("AI_TIMEOUT", RemediationStrategy.RETRY, 2, null),
+                    new RemediationRoute("AI_ERROR", RemediationStrategy.SKIP, 0, null)
+                ),
+                List.of()
             )
         );
     }
@@ -588,6 +630,7 @@ public final class OnboardingNodes {
             offerAccepted(),
             validateCandidate(),
             runBackgroundCheck(),
+            aiAnalyzeBackgroundCheck(),
             reviewBackgroundResults(),
             orderEquipment(),
             shipEquipment(),

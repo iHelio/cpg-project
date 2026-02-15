@@ -16,6 +16,7 @@
 
 package com.ihelio.cpg.application.onboarding;
 
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.AI_ANALYZE_BACKGROUND;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.COLLECT_DOCUMENTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CREATE_ACCOUNTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.OFFER_ACCEPTED;
@@ -75,7 +76,7 @@ class OnboardingProcessGraphTest {
         @Test
         @DisplayName("Graph has all expected nodes")
         void graphHasAllExpectedNodes() {
-            assertEquals(12, graph.nodes().size());
+            assertEquals(13, graph.nodes().size());
 
             Set<NodeId> nodeIds = graph.nodes().stream()
                 .map(Node::id)
@@ -84,6 +85,7 @@ class OnboardingProcessGraphTest {
             assertTrue(nodeIds.contains(OFFER_ACCEPTED));
             assertTrue(nodeIds.contains(VALIDATE_CANDIDATE));
             assertTrue(nodeIds.contains(RUN_BACKGROUND_CHECK));
+            assertTrue(nodeIds.contains(AI_ANALYZE_BACKGROUND));
             assertTrue(nodeIds.contains(REVIEW_BACKGROUND_RESULTS));
             assertTrue(nodeIds.contains(ORDER_EQUIPMENT));
             assertTrue(nodeIds.contains(SHIP_EQUIPMENT));
@@ -98,7 +100,7 @@ class OnboardingProcessGraphTest {
         @Test
         @DisplayName("Graph has all expected edges")
         void graphHasAllExpectedEdges() {
-            assertEquals(18, graph.edges().size());
+            assertEquals(19, graph.edges().size());
         }
 
         @Test
@@ -211,10 +213,20 @@ class OnboardingProcessGraphTest {
         }
 
         @Test
-        @DisplayName("Background check has multiple parallel outbound edges")
-        void backgroundCheckHasMultipleParallelEdges() {
+        @DisplayName("Background check routes to AI analysis")
+        void backgroundCheckRoutesToAiAnalysis() {
             List<Edge> edges = graph.getOutboundEdges(RUN_BACKGROUND_CHECK);
-            assertEquals(5, edges.size()); // to review, equipment, accounts, documents, cancelled
+            assertEquals(2, edges.size()); // to AI analysis, cancelled
+
+            assertTrue(edges.stream()
+                .anyMatch(e -> e.targetNodeId().equals(AI_ANALYZE_BACKGROUND)));
+        }
+
+        @Test
+        @DisplayName("AI analysis has multiple outbound edges")
+        void aiAnalysisHasMultipleOutboundEdges() {
+            List<Edge> edges = graph.getOutboundEdges(AI_ANALYZE_BACKGROUND);
+            assertEquals(4, edges.size()); // to review, equipment, accounts, documents
 
             long parallelEdges = edges.stream()
                 .filter(e -> e.executionSemantics().type() == Edge.ExecutionType.PARALLEL)
@@ -292,15 +304,19 @@ class OnboardingProcessGraphTest {
         @DisplayName("Get edges activated by event")
         void getEdgesActivatedByEvent() {
             List<Edge> edges = graph.getEdgesActivatedByEvent("BackgroundCheckCompleted");
-            assertEquals(4, edges.size()); // to review, equipment, accounts, documents
+            assertEquals(1, edges.size()); // to AI analysis
+
+            List<Edge> aiEdges = graph.getEdgesActivatedByEvent("AiAnalysisCompleted");
+            assertEquals(4, aiEdges.size()); // to review, equipment, accounts, documents
         }
 
         @Test
         @DisplayName("Node map lookup")
         void nodeMapLookup() {
             var nodeMap = graph.nodeMap();
-            assertEquals(12, nodeMap.size());
+            assertEquals(13, nodeMap.size());
             assertNotNull(nodeMap.get(OFFER_ACCEPTED));
+            assertNotNull(nodeMap.get(AI_ANALYZE_BACKGROUND));
         }
     }
 
@@ -312,7 +328,18 @@ class OnboardingProcessGraphTest {
         @DisplayName("All nodes returns complete list")
         void allNodesReturnsCompleteList() {
             List<Node> nodes = OnboardingNodes.all();
-            assertEquals(12, nodes.size());
+            assertEquals(13, nodes.size());
+        }
+
+        @Test
+        @DisplayName("AI analyze node has correct properties")
+        void aiAnalyzeNodeHasCorrectProperties() {
+            Node node = graph.findNode(AI_ANALYZE_BACKGROUND).orElseThrow();
+            assertEquals(ActionType.AGENT_ASSISTED, node.action().type());
+            assertEquals("aiBackgroundAnalyst", node.action().handlerRef());
+            assertTrue(node.action().config().asynchronous());
+            assertEquals(120, node.action().config().timeoutSeconds());
+            assertEquals(2, node.action().config().retryCount());
         }
 
         @Test
@@ -346,7 +373,7 @@ class OnboardingProcessGraphTest {
         @DisplayName("All edges returns complete list")
         void allEdgesReturnsCompleteList() {
             List<Edge> edges = OnboardingEdges.all();
-            assertEquals(18, edges.size());
+            assertEquals(19, edges.size());
         }
 
         @Test

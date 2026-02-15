@@ -10,6 +10,7 @@ flowchart TB
 
     subgraph BackgroundCheck["Background Check"]
         C["run-background-check<br/>Run Background Check"]
+        C2["ai-analyze-background-check<br/>AI Analyze Background<br/>(AGENT_ASSISTED)"]
         D["review-background-results<br/>Review Background Results<br/>(HUMAN_TASK)"]
     end
 
@@ -43,12 +44,15 @@ flowchart TB
     B -->|"validation.status = PASSED"| C
     B -.->|"validation failed"| L
 
-    %% Background Check paths
-    C -->|"bgCheck.requiresReview = true"| D
-    C -->|"bgCheck.passed = true<br/>(parallel)"| E
-    C -->|"bgCheck.passed = true<br/>(parallel)"| G
-    C -->|"bgCheck.passed = true<br/>(parallel)"| H
+    %% Background Check to AI Analysis
+    C -->|"bgCheck.status = COMPLETED"| C2
     C -.->|"bgCheck failed"| L
+
+    %% AI Analysis paths
+    C2 -->|"aiAnalysis.requiresReview = true"| D
+    C2 -->|"aiAnalysis.passed = true<br/>(parallel)"| E
+    C2 -->|"aiAnalysis.passed = true<br/>(parallel)"| G
+    C2 -->|"aiAnalysis.passed = true<br/>(parallel)"| H
 
     %% Review paths
     D -->|"review approved<br/>(parallel)"| E
@@ -81,10 +85,12 @@ flowchart TB
     classDef complete fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
     classDef cancel fill:#ffcdd2,stroke:#c62828,stroke-width:2px
     classDef bgcheck fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+    classDef aiAgent fill:#e8f5e9,stroke:#388e3c,stroke-width:2px
 
     class A entry
     class B,E,F,G,J process
     class C,D bgcheck
+    class C2 aiAgent
     class H,I humanTask
     class K complete
     class L cancel
