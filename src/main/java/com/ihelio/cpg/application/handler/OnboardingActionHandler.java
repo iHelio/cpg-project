@@ -20,6 +20,7 @@ import com.ihelio.cpg.domain.action.ActionContext;
 import com.ihelio.cpg.domain.action.ActionHandler;
 import com.ihelio.cpg.domain.action.ActionResult;
 import com.ihelio.cpg.domain.model.Node;
+import java.util.List;
 import java.util.Map;
 import java.util.Set;
 import org.slf4j.Logger;
@@ -109,18 +110,32 @@ public class OnboardingActionHandler implements ActionHandler {
         ));
     }
 
+    @SuppressWarnings("unchecked")
     private ActionResult runBackgroundCheck(ActionContext context) {
         log.info("Running background check for instance: {}",
             context.processInstance().id().value());
 
-        // Simulate successful background check
-        return ActionResult.success(Map.of(
-            "backgroundCheck", Map.of(
-                "status", "COMPLETED",
-                "passed", true,
-                "requiresReview", false
-            )
-        ));
+        // Preserve findings from domain context if present
+        Map<String, Object> feelContext = context.toFeelContext();
+        Object existingBgCheck = feelContext.get("backgroundCheck");
+        List<?> findings = List.of();
+        if (existingBgCheck instanceof Map<?, ?> bgMap) {
+            Object findingsObj = bgMap.get("findings");
+            if (findingsObj instanceof List<?>) {
+                findings = (List<?>) findingsObj;
+            }
+        }
+
+        // Simulate background check completion, preserving any findings
+        Map<String, Object> bgCheckResult = new java.util.HashMap<>();
+        bgCheckResult.put("status", "COMPLETED");
+        bgCheckResult.put("passed", findings.isEmpty());
+        bgCheckResult.put("requiresReview", !findings.isEmpty());
+        if (!findings.isEmpty()) {
+            bgCheckResult.put("findings", findings);
+        }
+
+        return ActionResult.success(Map.of("backgroundCheck", bgCheckResult));
     }
 
     private ActionResult orderEquipment(ActionContext context) {
