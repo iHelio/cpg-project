@@ -27,6 +27,7 @@ The Contextualized Process Graph (CPG) is an enterprise-grade process execution 
 - **Domain-Driven Design (DDD)**: Clean separation between domain logic and infrastructure
 - **Hexagonal Architecture**: Ports and adapters pattern for maximum testability
 - **Policy-Enforcing Orchestrator**: Authoritative navigation engine with governance enforcement
+- **AI-Assisted Decision Making**: Claude-powered agents for automated analysis and recommendations
 - **Immutable Decision Traces**: Complete audit trail of every orchestration decision
 - **FEEL Expressions**: Industry-standard Friendly Enough Expression Language for conditions
 - **DMN Integration**: Decision Model and Notation for business rules and policies
@@ -45,6 +46,7 @@ The Contextualized Process Graph (CPG) is an enterprise-grade process execution 
 | Expression Engine | KIE FEEL (Drools) 9.44 |
 | Decision Engine | KIE DMN (Drools) 9.44 |
 | MCP Server | Spring AI MCP Server (WebMVC) 1.1.2 |
+| AI Integration | Spring AI Anthropic (Claude) 1.1.2 |
 | Testing | JUnit 5, Mockito, Testcontainers |
 
 ---
@@ -189,11 +191,16 @@ cpg/
 │   │   │   │   ├── policy/                   # Policy evaluation port
 │   │   │   │   ├── rule/                     # Rule evaluation port
 │   │   │   │   ├── event/                    # Event handling
+│   │   │   │   ├── ai/                       # AI domain (ports and value objects)
+│   │   │   │   │   ├── AiAnalystPort.java    # AI analyst port interface
+│   │   │   │   │   ├── BackgroundAnalysisResult.java # AI analysis result
+│   │   │   │   │   └── BackgroundCheckData.java # Background check input data
 │   │   │   │   ├── repository/               # Persistence ports
 │   │   │   │   └── exception/                # Domain exceptions
 │   │   │   ├── application/
 │   │   │   │   ├── handler/                  # Action handler registry
-│   │   │   │   ├── onboarding/               # Employee onboarding workflow (12 nodes, 18 edges)
+│   │   │   │   │   └── AiBackgroundAnalystHandler.java # AI background analyst handler
+│   │   │   │   ├── onboarding/               # Employee onboarding workflow (13 nodes, 19 edges)
 │   │   │   │   ├── expense/                  # Expense approval workflow (7 nodes, 9 edges)
 │   │   │   │   ├── document/                 # Document review workflow (8 nodes, 10 edges)
 │   │   │   │   └── orchestration/            # Process orchestrator
@@ -206,7 +213,11 @@ cpg/
 │   │   │   │   ├── dmn/                      # DMN decision service
 │   │   │   │   ├── persistence/              # In-memory repositories
 │   │   │   │   ├── event/                    # Event publisher adapter
+│   │   │   │   ├── ai/                       # AI adapters
+│   │   │   │   │   ├── ClaudeAiAnalystAdapter.java # Claude AI implementation
+│   │   │   │   │   └── StubAiAnalystAdapter.java   # Test stub adapter
 │   │   │   │   ├── config/                   # Spring configuration
+│   │   │   │   │   └── AiConfiguration.java  # AI configuration properties
 │   │   │   │   └── orchestration/            # Orchestrator implementations
 │   │   │   │       ├── DefaultProcessOrchestrator.java
 │   │   │   │       ├── DefaultExecutionGovernor.java
@@ -879,6 +890,65 @@ cpg:
       trace-retention-days: 90
 ```
 
+### AI Domain Types
+
+The AI integration introduces domain types for AI-assisted decision making.
+
+#### BackgroundAnalysisResult (Value Object)
+
+The result of AI analysis of background check data.
+
+```java
+public record BackgroundAnalysisResult(
+    int riskScore,                    // 0-100 risk score
+    String summary,                   // Human-readable summary
+    List<String> keyFindings,         // Notable findings
+    Recommendation recommendation,    // APPROVE, REVIEW, REJECT
+    String rationale,                 // Reasoning for recommendation
+    Map<String, Object> metadata      // Additional data
+) {
+    public boolean requiresReview();  // true if recommendation != APPROVE or riskScore > 30
+    public boolean passed();          // true if recommendation == APPROVE and riskScore <= 30
+    public Map<String, Object> toContextMap(); // Convert to context map
+}
+```
+
+**Recommendation Values:**
+
+| Value | Description |
+|-------|-------------|
+| `APPROVE` | AI recommends proceeding without human review |
+| `REVIEW` | AI recommends human review of findings |
+| `REJECT` | AI recommends rejection based on findings |
+
+#### BackgroundCheckData (Value Object)
+
+Input data for AI background check analysis.
+
+```java
+public record BackgroundCheckData(
+    String candidateId,               // Candidate identifier
+    String status,                    // Background check status
+    String position,                  // Position being hired for
+    String department,                // Department
+    List<Finding> findings,           // Background check findings
+    Map<String, Object> rawData       // Raw background check data
+)
+```
+
+#### AiAnalystPort (Port Interface)
+
+The port interface for AI analyst operations.
+
+```java
+public interface AiAnalystPort {
+    BackgroundAnalysisResult analyzeBackgroundCheck(
+        BackgroundCheckData data,
+        Map<String, Object> context
+    );
+}
+```
+
 ---
 
 ## Infrastructure Adapters
@@ -1068,6 +1138,64 @@ public interface DecisionTraceRepository {
 ```
 
 **Implementation:** `InMemoryDecisionTraceRepository` - ConcurrentHashMap-based for development.
+
+### AI Analyst Adapters
+
+#### ClaudeAiAnalystAdapter
+
+Production implementation using Spring AI with Claude.
+
+```java
+@ConditionalOnProperty(name = "cpg.ai.enabled", havingValue = "true")
+public class ClaudeAiAnalystAdapter implements AiAnalystPort {
+    private final ChatClient chatClient;
+
+    public BackgroundAnalysisResult analyzeBackgroundCheck(
+        BackgroundCheckData data,
+        Map<String, Object> context
+    ) {
+        // Build structured prompt from template
+        // Call Claude via Spring AI ChatClient
+        // Parse JSON response to BackgroundAnalysisResult
+    }
+}
+```
+
+**Configuration:**
+
+```yaml
+cpg:
+  ai:
+    enabled: ${AI_ENABLED:false}
+
+spring:
+  ai:
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: claude-sonnet-4-20250514
+          max-tokens: 2048
+          temperature: 0.3
+```
+
+#### StubAiAnalystAdapter
+
+Deterministic stub for testing without API key.
+
+```java
+@ConditionalOnProperty(name = "cpg.ai.enabled", havingValue = "false", matchIfMissing = true)
+public class StubAiAnalystAdapter implements AiAnalystPort {
+    // Returns deterministic results based on input
+    // Risk score based on number of findings
+    // Recommendation based on risk thresholds
+}
+```
+
+**Stub Behavior:**
+- 0 findings → riskScore=10, APPROVE
+- 1-2 findings → riskScore=35, REVIEW
+- 3+ findings → riskScore=75, REJECT
 
 ---
 
@@ -1501,7 +1629,7 @@ The system includes three pre-loaded example workflows that are initialized on a
 
 | Workflow | ID | Nodes | Edges | Description |
 |----------|-----|-------|-------|-------------|
-| **Employee Onboarding** | `employee-onboarding` | 12 | 18 | Full onboarding with background check, IT provisioning, HR docs |
+| **Employee Onboarding** | `employee-onboarding` | 13 | 19 | Full onboarding with AI-powered background analysis, IT provisioning, HR docs |
 | **Expense Approval** | `expense-approval` | 7 | 9 | Multi-level approval with finance review for amounts >= $5000 |
 | **Document Review** | `document-review` | 8 | 10 | Upload, scan, review with revision loop and publication |
 
@@ -1511,71 +1639,99 @@ The system includes three pre-loaded example workflows that are initialized on a
 
 ### Process Overview
 
-The employee onboarding workflow is a comprehensive reference implementation demonstrating parallel execution, event-driven transitions, and policy enforcement.
+The employee onboarding workflow is a comprehensive reference implementation demonstrating AI-assisted decision making, parallel execution, event-driven transitions, and policy enforcement.
 
 ```
     ┌─────────────────┐
     │ Offer Accepted  │ (Entry Point)
     └────────┬────────┘
-             │ offer.signed = true
+             │ offer.status = ACCEPTED
              ▼
     ┌─────────────────┐
-    │Validate Documents│
+    │Validate Candidate│
     └────────┬────────┘
-             │ documents.valid = true
+             │ validation.status = PASSED
              ▼
     ┌─────────────────┐
-    │Background Check │
-    │   Initiation    │
+    │Run Background   │
+    │   Check         │
     └────────┬────────┘
-             │ (parallel split)
-    ┌────────┼────────────────────────┐
-    │        │                        │
-    ▼        ▼                        ▼
-┌───────┐ ┌──────────┐ ┌─────────────────────┐
-│Create │ │Generate  │ │Await Background     │
-│User   │ │Employment│ │Check Result         │
-│Accounts││Docs      │ │(event: bg.completed)│
-└───┬───┘ └────┬─────┘ └──────────┬──────────┘
-    │          │                  │
-    ▼          ▼                  │
-┌───────┐ ┌──────────┐           │
-│Provision││Benefits │            │
-│Equipment││Enrollment│           │
-└───┬───┘ └────┬─────┘           │
-    │          │                  │
-    └──────────┼──────────────────┘
-               │ (join: ALL)
+             │ bgCheck.status = COMPLETED
+             ▼
+    ┌─────────────────┐
+    │ AI Analyze      │ (AGENT_ASSISTED)
+    │ Background      │
+    └────────┬────────┘
+             │
+    ┌────────┴────────┐
+    │                 │
+    ▼                 ▼
+aiAnalysis.      aiAnalysis.passed = true
+requiresReview       │
+= true               │
+    │     ┌──────────┼──────────────┐
+    ▼     │          │              │
+┌───────────────┐    ▼              ▼
+│HR Review      │ ┌───────┐ ┌───────────┐
+│Background     │ │Order  │ │Create     │
+│(HUMAN_TASK)   │ │Equip  │ │Accounts   │
+└───────┬───────┘ └───┬───┘ └─────┬─────┘
+        │             │           │
+        │             ▼           │
+        │        ┌───────┐        │
+        │        │Ship   │        │
+        │        │Equip  │        │
+        │        └───┬───┘        │
+        │            │            │
+        └──────┬─────┴────────────┘
+               │
+    ┌──────────┴──────────┐
+    ▼                     ▼
+┌───────────┐     ┌───────────┐
+│Collect    │     │Schedule   │◄──────┐
+│Documents  │     │Orientation│       │
+│(HUMAN_TASK)│     └─────┬─────┘       │
+└─────┬─────┘           │             │
+      │                 │             │
+      ▼                 │             │
+┌───────────┐           │             │
+│Verify I-9 │───────────┘             │
+│(HUMAN_TASK)│                        │
+└───────────┘                         │
+                                      │
+               ┌──────────────────────┘
+               │ all prerequisites met
                ▼
-       ┌──────────────┐
-       │ Final Review │
-       └──────┬───────┘
-              │ review.approved = true
-              ▼
        ┌──────────────┐
        │  Onboarding  │ (Terminal)
        │   Complete   │
        └──────────────┘
 ```
 
+**AI Decision Flow:**
+- If AI analysis passes (riskScore ≤ 30 and recommendation = APPROVE): Skip HR review, proceed directly to parallel provisioning
+- If AI flags for review (riskScore > 30 or recommendation = REVIEW): Route to HR for manual review
+
 ### Process Components
 
-**Nodes (12 total):**
+**Nodes (13 total):**
 - `offer-accepted` - Entry point when offer is signed
-- `validate-documents` - Verify offer documents
-- `background-check-init` - Start background investigation
-- `create-user-accounts` - Provision AD/email accounts
-- `provision-equipment` - Order laptop, badges, etc.
-- `generate-employment-docs` - Create contracts, NDAs
-- `benefits-enrollment` - Open benefits enrollment
-- `await-background-check` - Wait for external result
-- `final-review` - Management sign-off
+- `validate-candidate` - Validate candidate eligibility
+- `run-background-check` - Start background investigation
+- `ai-analyze-background-check` - AI analyzes background results (AGENT_ASSISTED)
+- `review-background-results` - HR reviews flagged cases (HUMAN_TASK)
+- `order-equipment` - Order laptop, badges, etc.
+- `ship-equipment` - Ship equipment to employee
+- `create-accounts` - Provision AD/email accounts
+- `collect-documents` - HR collects required documents (HUMAN_TASK)
+- `verify-i9` - Verify I-9 compliance (HUMAN_TASK)
+- `schedule-orientation` - Schedule employee orientation
 - `onboarding-complete` - Success terminal
 - `onboarding-cancelled` - Failure terminal
 
-**Edges (18 total):**
+**Edges (19 total):**
 - Sequential transitions with FEEL guards
-- Parallel splits from background-check-init
+- AI analysis routes to HR review (if requiresReview=true) or directly to parallel provisioning (if passed=true)
 - Join at final-review (JoinType.ALL)
 - Cancellation paths for failures
 
@@ -1771,13 +1927,15 @@ The project requires 80% line coverage (enforced by JaCoCo):
 |---------|-------|
 | `domain.engine` | 46 tests |
 | `application.orchestration` | 11 tests (EligibilityEvaluator, NavigationDecider, InstanceOrchestrator) |
+| `application.handler` | 8 tests (AiBackgroundAnalystHandler) |
 | `infrastructure.orchestration` | 23 tests (ExecutionGovernor, DecisionTracer, Integration) |
+| `infrastructure.ai` | 8 tests (ClaudeAiAnalystAdapter, StubAiAnalystAdapter) |
 | `infrastructure.feel` | Expression evaluation tests |
 | `interfaces.rest` | REST controller tests |
 | `interfaces.mcp` | 38 tests (OrchestrationTools, Resources, Prompts) |
 | `integration` | End-to-end onboarding test |
 
-**Total: 265 tests**
+**Total: 286 tests**
 
 ---
 
