@@ -26,6 +26,25 @@ cpg:
     enabled: ${AI_ENABLED:false}
     timeout-seconds: 120
     max-retries: 2
+  assistant:
+    enabled: true
+    progress:
+      phases:
+        offer-validation:
+          name: "Offer & Validation"
+          nodes: ["offer-accepted", "validate-candidate"]
+        background-check:
+          name: "Background Check"
+          nodes: ["run-background-check", "ai-analyze-background-check", "review-background-results"]
+        it-provisioning:
+          name: "IT Provisioning"
+          nodes: ["order-equipment", "ship-equipment", "create-accounts"]
+        hr-documentation:
+          name: "HR Documentation"
+          nodes: ["collect-documents", "verify-i9"]
+        completion:
+          name: "Completion"
+          nodes: ["schedule-orientation", "onboarding-complete"]
 
 server:
   port: 8080
