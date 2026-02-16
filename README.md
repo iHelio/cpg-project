@@ -7,7 +7,8 @@ An enterprise-grade, action-oriented process execution engine built with Java 21
 - **Process Execution Engine** — Node/edge evaluation with FEEL expressions and DMN decision tables
 - **Policy-Enforcing Orchestrator** — Autonomous navigation with idempotency, authorization, and policy gate enforcement
 - **Immutable Decision Traces** — Complete audit trail of every orchestration decision
-- **MCP Server** — Model Context Protocol server exposing 21 tools, 5 resources, and 3 prompts for AI client orchestration access
+- **MCP Server** — Model Context Protocol server exposing 29 tools, 5 resources, and 6 prompts for AI client orchestration access
+- **Onboarding Assistant** — AI-powered hiring manager assistant with natural language status queries via Claude Desktop
 - **REST API** — Full REST API for process graph management, instance execution, and orchestration control
 - **Event-Driven** — Event correlation and reactive edge traversal with reevaluation
 
@@ -80,6 +81,32 @@ Add to `~/Library/Application Support/Claude/claude_desktop_config.json` (macOS)
 
 See [MCP App Installation Guide](docs/MCP_APP_INSTALLATION.md) for detailed setup instructions.
 
+## Onboarding Assistant (Hiring Manager Tools)
+
+The Onboarding Assistant provides AI-powered tools for hiring managers to check candidate onboarding status via Claude Desktop.
+
+### Available Tools
+
+| Tool | Description |
+|------|-------------|
+| `find_onboarding_status` | Find status by candidate name or ID |
+| `get_my_onboardings` | List all active onboardings |
+| `get_onboarding_progress` | Detailed step-by-step progress |
+| `get_onboarding_issues` | Check for blockers and issues |
+| `get_estimated_completion` | Estimated completion date |
+| `get_recent_activity` | Recent activity log |
+| `get_ai_analysis_summary` | AI background check analysis |
+| `search_candidates` | Search by name, position, department |
+
+### Example Queries in Claude Desktop
+
+- "What's Sarah Chen's onboarding status?"
+- "Show me all active onboardings"
+- "Are there any issues with John's onboarding?"
+- "When will Michael's onboarding be complete?"
+
+See [Claude Desktop Setup Guide](docs/claude-desktop-setup.md) for configuration instructions.
+
 ## Common Commands
 
 ```bash
@@ -120,6 +147,7 @@ start_orchestration employee-onboarding
 - [System Documentation](docs/SYSTEM_DOCUMENTATION.md) — Architecture, domain model, API reference, and examples
 - [MCP Tools Guide](docs/MCP_TOOLS_GUIDE.md) — Guide for AI clients using MCP tools for workflow automation
 - [MCP App Installation](docs/MCP_APP_INSTALLATION.md) — Docker and Claude Desktop setup
+- [Claude Desktop Setup](docs/claude-desktop-setup.md) — Onboarding Assistant for hiring managers
 - [Skills Reference](docs/SKILLS_REFERENCE.md) — Claude Code skills for interactive workflow automation
 - [Events Reference](docs/EVENTS_REFERENCE.md) — Complete event catalog with payloads and flow diagrams
 

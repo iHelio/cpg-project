@@ -15,12 +15,13 @@ This guide explains how to use the Model Context Protocol (MCP) tools exposed by
 
 ## Overview
 
-The CPG MCP server exposes 21 tools that allow AI clients to:
+The CPG MCP server exposes 29 tools that allow AI clients to:
 
 - Discover and inspect process graphs
 - Start and manage orchestrated workflows
 - Progress workflows through event-driven stepping
 - Inspect process state and execution history
+- Query onboarding status for hiring managers (Onboarding Assistant)
 
 The orchestrator is **completely event-driven** - each orchestration step executes at most one node. This gives AI clients fine-grained control over workflow progression.
 
@@ -416,6 +417,155 @@ Get execution history for a process instance showing all node executions.
   ]
 }
 ```
+
+---
+
+### Hiring Manager Tools (Onboarding Assistant)
+
+These tools enable hiring managers to check onboarding status via natural language queries in Claude Desktop.
+
+#### `find_onboarding_status`
+
+Find onboarding status by candidate name or ID.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name (fuzzy search) or candidate ID
+
+**Response:**
+```json
+{
+  "found": true,
+  "instanceId": "fbfca111-6742-4030-9c08-a79443fe3233",
+  "candidateName": "Sarah Chen",
+  "candidateId": "C001",
+  "position": "Senior Software Engineer",
+  "department": "Engineering",
+  "status": "RUNNING",
+  "progress": 38,
+  "currentPhase": "Background Check",
+  "estimatedCompletion": "2026-02-22T12:00:00Z"
+}
+```
+
+#### `get_my_onboardings`
+
+List all active onboardings (optionally filtered by hiring manager).
+
+**Parameters:**
+- `hiringManager` (optional): Filter by hiring manager name
+
+**Response:**
+```json
+{
+  "count": 3,
+  "onboardings": [
+    {
+      "instanceId": "fbfca111-6742-4030-9c08-a79443fe3233",
+      "candidateName": "Sarah Chen",
+      "position": "Senior Software Engineer",
+      "progress": 38,
+      "currentPhase": "Background Check",
+      "hasIssues": false
+    }
+  ]
+}
+```
+
+#### `get_onboarding_progress`
+
+Get detailed step-by-step progress for an onboarding.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name or ID
+
+**Response:**
+```json
+{
+  "candidateName": "Sarah Chen",
+  "overallProgress": 38,
+  "currentPhase": "Background Check",
+  "phases": {
+    "Offer & Validation": "COMPLETE",
+    "Background Check": "IN_PROGRESS",
+    "IT Provisioning": "PENDING",
+    "HR Documentation": "PENDING",
+    "Completion": "PENDING"
+  },
+  "steps": [
+    {
+      "stepName": "Offer Accepted",
+      "status": "COMPLETED",
+      "completedAt": "2026-02-15T12:00:00Z"
+    }
+  ]
+}
+```
+
+#### `get_onboarding_issues`
+
+Check for blockers and issues affecting an onboarding.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name or ID
+
+**Response:**
+```json
+{
+  "candidateName": "Sarah Chen",
+  "issueCount": 1,
+  "issues": [
+    {
+      "type": "FLAGGED",
+      "severity": "MEDIUM",
+      "description": "AI Analysis: Background check findings require HR review",
+      "affectedStep": "Background Check",
+      "suggestedAction": "HR must review background check findings"
+    }
+  ]
+}
+```
+
+#### `get_estimated_completion`
+
+Get estimated completion date for an onboarding.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name or ID
+
+#### `get_recent_activity`
+
+Get recent activity log for an onboarding.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name or ID
+- `limit` (optional): Maximum number of activities to return (default: 10)
+
+#### `get_ai_analysis_summary`
+
+Get AI background check analysis summary.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name or ID
+
+**Response:**
+```json
+{
+  "candidateName": "Sarah Chen",
+  "hasAnalysis": true,
+  "riskScore": 15,
+  "recommendation": "APPROVE",
+  "summary": "Clean background with no adverse findings",
+  "keyFindings": [],
+  "rationale": "No issues found in background check"
+}
+```
+
+#### `search_candidates`
+
+Search for candidates by various criteria.
+
+**Parameters:**
+- `query` (required): Search query (matches name, ID, position, department)
 
 ---
 

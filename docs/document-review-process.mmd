@@ -1,0 +1,75 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#01579b'}}}%%
+flowchart TB
+    subgraph Entry["Entry Point"]
+        A[("upload-document<br/>Upload Document<br/>(HUMAN_TASK)")]
+    end
+
+    subgraph Scanning["Automated Scan"]
+        B["scan-document<br/>Scan Document"]
+    end
+
+    subgraph Assignment["Reviewer Assignment"]
+        C["assign-reviewer<br/>Assign Reviewer"]
+    end
+
+    subgraph Review["Review Process"]
+        D["review-document<br/>Review Document<br/>(HUMAN_TASK)"]
+        E["request-revision<br/>Request Revision<br/>(HUMAN_TASK)"]
+    end
+
+    subgraph Publication["Publication"]
+        F["publish-document<br/>Publish Document"]
+    end
+
+    subgraph Completion["Completion"]
+        G(["document-approved<br/>Document Approved"])
+    end
+
+    subgraph Rejection["Rejection Path"]
+        H(["document-rejected<br/>Document Rejected"])
+    end
+
+    %% Entry to Scan
+    A -->|"DocumentUploaded"| B
+
+    %% Scan paths
+    B -->|"scan.passed = true"| C
+    B -.->|"scan failed<br/>(malware/compliance)"| H
+
+    %% Assignment to Review
+    C -->|"reviewer.assigned = true"| D
+
+    %% Review decision paths
+    D -->|"review.decision = APPROVED"| F
+    D -->|"revision required<br/>(revisionCount < 3)"| E
+    D -.->|"review rejected"| H
+    D -.->|"revision limit exceeded<br/>(revisionCount >= 3)"| H
+
+    %% Revision loop
+    E -->|"RevisionSubmitted"| D
+
+    %% Publication to Completion
+    F -->|"document.published = true"| G
+
+    %% Policy Gates shown
+    B -.->|"Policy: Security Scan"| B
+    D -.->|"Policy: Review Guidelines"| D
+
+    %% Escalation Routes
+    D -.->|"Escalation: REVIEW_SLA_BREACH"| D
+    E -.->|"Escalation: REVISION_OVERDUE"| E
+
+    %% Styling
+    classDef entry fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef humanTask fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef complete fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    classDef reject fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    classDef scan fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+
+    class A entry
+    class B scan
+    class C,F process
+    class D,E humanTask
+    class G complete
+    class H reject

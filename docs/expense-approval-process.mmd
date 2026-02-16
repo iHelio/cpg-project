@@ -1,0 +1,63 @@
+%%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#01579b'}}}%%
+flowchart TB
+    subgraph Entry["Entry Point"]
+        A[("submit-expense<br/>Submit Expense<br/>(HUMAN_TASK)")]
+    end
+
+    subgraph Validation["Validation"]
+        B["validate-expense<br/>Validate Expense"]
+    end
+
+    subgraph Approval["Approval Flow"]
+        C["manager-approval<br/>Manager Approval<br/>(HUMAN_TASK)"]
+        D["finance-review<br/>Finance Review<br/>(HUMAN_TASK)"]
+    end
+
+    subgraph Payment["Payment Processing"]
+        E["process-payment<br/>Process Payment"]
+    end
+
+    subgraph Completion["Completion"]
+        F(["expense-approved<br/>Expense Approved"])
+    end
+
+    subgraph Rejection["Rejection Path"]
+        G(["expense-rejected<br/>Expense Rejected"])
+    end
+
+    %% Entry to Validation
+    A -->|"ExpenseSubmitted"| B
+
+    %% Validation paths
+    B -->|"expense.validated = true"| C
+    B -.->|"validation failed"| G
+
+    %% Manager Approval paths
+    C -->|"managerApproved = true<br/>amount >= $5000"| D
+    C -->|"managerApproved = true<br/>amount < $5000"| E
+    C -.->|"manager rejected"| G
+
+    %% Finance Review paths
+    D -->|"financeApproved = true"| E
+    D -.->|"finance rejected"| G
+
+    %% Payment to Completion
+    E -->|"payment.processed = true"| F
+
+    %% Policy Gates shown
+    B -.->|"Policy: Expense Policy"| B
+    D -.->|"Policy: Budget Availability"| D
+
+    %% Styling
+    classDef entry fill:#c8e6c9,stroke:#2e7d32,stroke-width:2px
+    classDef process fill:#e3f2fd,stroke:#1565c0,stroke-width:2px
+    classDef humanTask fill:#fff3e0,stroke:#ef6c00,stroke-width:2px
+    classDef complete fill:#c8e6c9,stroke:#2e7d32,stroke-width:3px
+    classDef reject fill:#ffcdd2,stroke:#c62828,stroke-width:2px
+    classDef approval fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px
+
+    class A entry
+    class B,E process
+    class C,D humanTask
+    class F complete
+    class G reject
