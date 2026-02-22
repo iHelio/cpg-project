@@ -370,6 +370,47 @@ public class HiringManagerTools {
         return toJson(result);
     }
 
+    @McpTool(name = "get_background_check_results",
+             description = "Get background check results and status for a candidate's onboarding. "
+                 + "Shows whether the check passed, findings, and review status.")
+    public String getBackgroundCheckResults(
+            @McpToolParam(description = "Candidate name or ID", required = true) String candidateQuery) {
+        log.info("MCP tool: get_background_check_results({})", candidateQuery);
+
+        Optional<ProcessInstance> instanceOpt = findInstance(candidateQuery);
+        if (instanceOpt.isEmpty()) {
+            return toJson(Map.of(
+                "found", false,
+                "message", "No onboarding found for: " + candidateQuery
+            ));
+        }
+
+        ProcessInstance instance = instanceOpt.get();
+        CandidateInfo info = candidateLookupService.extractCandidateInfo(instance);
+
+        Optional<Map<String, Object>> checkOpt = progressService.getBackgroundCheckSummary(instance);
+        if (checkOpt.isEmpty()) {
+            return toJson(Map.of(
+                "candidateId", info.candidateId(),
+                "candidateName", info.candidateName(),
+                "hasBackgroundCheck", false,
+                "message", "Background check not yet completed for this candidate"
+            ));
+        }
+
+        Map<String, Object> check = checkOpt.get();
+        Map<String, Object> result = new LinkedHashMap<>();
+        result.put("candidateId", info.candidateId());
+        result.put("candidateName", info.candidateName());
+        result.put("hasBackgroundCheck", true);
+        result.put("status", check.get("status"));
+        result.put("passed", check.get("passed"));
+        result.put("requiresReview", check.get("requiresReview"));
+        result.put("findings", check.get("findings"));
+
+        return toJson(result);
+    }
+
     @McpTool(name = "search_candidates",
              description = "Search for candidates by name, ID, position, or department. "
                  + "Use this to find candidates when you don't have the exact name or ID.")

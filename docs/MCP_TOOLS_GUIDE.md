@@ -560,6 +560,26 @@ Get AI background check analysis summary.
 }
 ```
 
+#### `get_background_check_results`
+
+Get background check results and status for a candidate's onboarding.
+
+**Parameters:**
+- `candidateNameOrId` (required): Candidate name or ID
+
+**Response:**
+```json
+{
+  "candidateId": "C001",
+  "candidateName": "Sarah Chen",
+  "hasBackgroundCheck": true,
+  "status": "COMPLETED",
+  "passed": true,
+  "requiresReview": false,
+  "findings": []
+}
+```
+
 #### `search_candidates`
 
 Search for candidates by various criteria.

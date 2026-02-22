@@ -368,6 +368,27 @@ public class OnboardingProgressService {
     }
 
     /**
+     * Gets a summary of the background check results if available.
+     *
+     * @param instance the process instance
+     * @return background check results or empty
+     */
+    @SuppressWarnings("unchecked")
+    public Optional<Map<String, Object>> getBackgroundCheckSummary(ProcessInstance instance) {
+        if (instance.context() == null) {
+            return Optional.empty();
+        }
+
+        Map<String, Object> state = instance.context().accumulatedState();
+        Object backgroundCheck = state.get("backgroundCheck");
+        if (backgroundCheck instanceof Map<?, ?> backgroundCheckMap) {
+            return Optional.of((Map<String, Object>) backgroundCheckMap);
+        }
+
+        return Optional.empty();
+    }
+
+    /**
      * Gets phase progress summary.
      *
      * @param instance the process instance
