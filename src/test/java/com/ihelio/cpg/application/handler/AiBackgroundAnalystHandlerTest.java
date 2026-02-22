@@ -191,6 +191,72 @@ class AiBackgroundAnalystHandlerTest {
         }
 
         @Test
+        @DisplayName("Preserves existing backgroundCheck fields when merging AI results")
+        void preservesExistingBackgroundCheckFields() {
+            BackgroundAnalysisResult analysisResult = new BackgroundAnalysisResult(
+                15,
+                "Clean background check",
+                List.of("No findings"),
+                BackgroundAnalysisResult.Recommendation.APPROVE,
+                "Low risk candidate",
+                Map.of()
+            );
+
+            when(aiAnalyst.analyzeBackgroundCheck(any(), any())).thenReturn(analysisResult);
+
+            ActionContext context = createActionContext(Map.of(
+                "backgroundCheck", Map.of(
+                    "status", "COMPLETED",
+                    "findings", List.of(),
+                    "provider", "checkr"
+                ),
+                "candidate", Map.of("id", "C123")
+            ));
+
+            ActionResult result = handler.execute(context);
+
+            assertTrue(result.isSuccess());
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> bgCheck = (Map<String, Object>) result.output().get("backgroundCheck");
+            assertEquals("COMPLETED", bgCheck.get("status"));
+            assertEquals(List.of(), bgCheck.get("findings"));
+            assertEquals("checkr", bgCheck.get("provider"));
+            assertEquals(true, bgCheck.get("passed"));
+            assertEquals(false, bgCheck.get("requiresReview"));
+            assertEquals(true, bgCheck.get("aiReviewed"));
+        }
+
+        @Test
+        @DisplayName("Handles missing backgroundCheck in context gracefully")
+        void handlesMissingBackgroundCheckInContext() {
+            BackgroundAnalysisResult analysisResult = new BackgroundAnalysisResult(
+                15,
+                "Clean background check",
+                List.of("No findings"),
+                BackgroundAnalysisResult.Recommendation.APPROVE,
+                "Low risk candidate",
+                Map.of()
+            );
+
+            when(aiAnalyst.analyzeBackgroundCheck(any(), any())).thenReturn(analysisResult);
+
+            ActionContext context = createActionContext(Map.of(
+                "candidate", Map.of("id", "C123")
+            ));
+
+            ActionResult result = handler.execute(context);
+
+            assertTrue(result.isSuccess());
+
+            @SuppressWarnings("unchecked")
+            Map<String, Object> bgCheck = (Map<String, Object>) result.output().get("backgroundCheck");
+            assertEquals(true, bgCheck.get("passed"));
+            assertEquals(false, bgCheck.get("requiresReview"));
+            assertEquals(true, bgCheck.get("aiReviewed"));
+        }
+
+        @Test
         @DisplayName("Extracts position and department from offer context")
         void extractsPositionAndDepartmentFromOffer() {
             BackgroundAnalysisResult analysisResult = new BackgroundAnalysisResult(

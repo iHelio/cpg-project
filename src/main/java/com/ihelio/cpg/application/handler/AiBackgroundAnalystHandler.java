@@ -79,11 +79,16 @@ public class AiBackgroundAnalystHandler implements ActionHandler {
 
             Map<String, Object> output = new HashMap<>();
             output.put("aiAnalysis", result.toContextMap());
-            output.put("backgroundCheck", Map.of(
-                "passed", result.passed(),
-                "requiresReview", result.requiresReview(),
-                "aiReviewed", true
-            ));
+
+            Map<String, Object> updatedBgCheck = new HashMap<>();
+            Object existing = context.toFeelContext().get("backgroundCheck");
+            if (existing instanceof Map<?, ?> existingMap) {
+                existingMap.forEach((k, v) -> updatedBgCheck.put(String.valueOf(k), v));
+            }
+            updatedBgCheck.put("passed", result.passed());
+            updatedBgCheck.put("requiresReview", result.requiresReview());
+            updatedBgCheck.put("aiReviewed", true);
+            output.put("backgroundCheck", updatedBgCheck);
 
             return ActionResult.success(output);
 

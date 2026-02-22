@@ -235,6 +235,20 @@ class OnboardingProcessGraphTest {
         }
 
         @Test
+        @DisplayName("AI analysis to review edge is exclusive")
+        void aiAnalysisToReviewEdgeIsExclusive() {
+            List<Edge> edges = graph.getOutboundEdges(AI_ANALYZE_BACKGROUND);
+            Edge reviewEdge = edges.stream()
+                .filter(e -> e.targetNodeId().equals(REVIEW_BACKGROUND_RESULTS))
+                .findFirst()
+                .orElseThrow();
+
+            assertTrue(reviewEdge.priority().exclusive(),
+                "ai-analysis-to-review edge must be exclusive to block parallel provisioning paths");
+            assertEquals(1000, reviewEdge.priority().weight());
+        }
+
+        @Test
         @DisplayName("Review rejection is exclusive")
         void reviewRejectionIsExclusive() {
             List<Edge> edges = graph.getOutboundEdges(REVIEW_BACKGROUND_RESULTS);

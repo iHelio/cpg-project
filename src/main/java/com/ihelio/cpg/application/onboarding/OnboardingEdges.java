@@ -142,7 +142,7 @@ public final class OnboardingEdges {
                 FeelExpression.of("aiAnalysis.requiresReview = true")
             )),
             ExecutionSemantics.sequential(),
-            Priority.high(),
+            new Priority(1000, 0, true),
             EventTriggers.activatedBy("AiAnalysisCompleted"),
             CompensationSemantics.none()
         );
