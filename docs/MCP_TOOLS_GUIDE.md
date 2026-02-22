@@ -408,8 +408,8 @@ Get execution history for a process instance showing all node executions.
   "executionCount": 3,
   "history": [
     {
-      "nodeId": "offer-accepted",
-      "nodeName": "Offer Accepted",
+      "nodeId": "initialize-onboarding",
+      "nodeName": "Initialize Onboarding",
       "status": "COMPLETED",
       "startedAt": "2026-02-08T12:00:01Z",
       "completedAt": "2026-02-08T12:00:02Z"
@@ -493,7 +493,7 @@ Get detailed step-by-step progress for an onboarding.
   },
   "steps": [
     {
-      "stepName": "Offer Accepted",
+      "stepName": "Initialize Onboarding",
       "status": "COMPLETED",
       "completedAt": "2026-02-15T12:00:00Z"
     }
@@ -578,7 +578,7 @@ Search for candidates by various criteria.
    → Returns instanceId
 
 2. step_orchestration(instanceId)
-   → Executes "Offer Accepted" node
+   → Executes "Initialize Onboarding" node
    → Returns EXECUTED status
 
 3. step_orchestration(instanceId)

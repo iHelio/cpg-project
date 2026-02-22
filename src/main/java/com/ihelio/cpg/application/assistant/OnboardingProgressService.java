@@ -47,15 +47,15 @@ public class OnboardingProgressService {
     // Define phases and their associated nodes
     private static final Map<String, List<String>> PHASES = new LinkedHashMap<>();
     static {
-        PHASES.put("Offer & Validation", List.of("offer-accepted", "validate-candidate"));
+        PHASES.put("Offer & Validation", List.of("initialize-onboarding", "validate-candidate"));
         PHASES.put("Background Check", List.of("run-background-check", "ai-analyze-background-check", "review-background-results"));
         PHASES.put("IT Provisioning", List.of("order-equipment", "ship-equipment", "create-accounts"));
         PHASES.put("HR Documentation", List.of("collect-documents", "verify-i9"));
-        PHASES.put("Completion", List.of("schedule-orientation", "onboarding-complete"));
+        PHASES.put("Completion", List.of("schedule-orientation", "finalize-onboarding"));
     }
 
     // Terminal nodes that don't count toward progress
-    private static final Set<String> TERMINAL_NODES = Set.of("onboarding-complete", "onboarding-cancelled");
+    private static final Set<String> TERMINAL_NODES = Set.of("finalize-onboarding", "cancel-onboarding");
 
     // Average duration per phase (for estimation)
     private static final Map<String, Duration> PHASE_DURATIONS = Map.of(
@@ -188,10 +188,10 @@ public class OnboardingProgressService {
             .collect(java.util.stream.Collectors.toSet());
 
         // Check if process is complete
-        if (completedNodeIds.contains("onboarding-complete")) {
+        if (completedNodeIds.contains("finalize-onboarding")) {
             return "Complete";
         }
-        if (completedNodeIds.contains("onboarding-cancelled")) {
+        if (completedNodeIds.contains("cancel-onboarding")) {
             return "Cancelled";
         }
 

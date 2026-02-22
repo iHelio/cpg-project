@@ -1259,7 +1259,7 @@ curl -X POST http://localhost:8080/api/v1/process-instances \
 ```bash
 curl -X POST http://localhost:8080/api/v1/process-instances/{id}/execute \
   -H "Content-Type: application/json" \
-  -d '{"nodeId": "offer-accepted"}'
+  -d '{"nodeId": "initialize-onboarding"}'
 ```
 
 ### Orchestration API
@@ -1314,8 +1314,8 @@ curl -X POST http://localhost:8080/api/v1/orchestration/start \
   "isComplete": false,
   "lastDecision": {
     "type": "PROCEED",
-    "selectedNodes": ["offer-accepted"],
-    "selectionReason": "Selected single eligible action: offer-accepted",
+    "selectedNodes": ["initialize-onboarding"],
+    "selectionReason": "Selected single eligible action: initialize-onboarding",
     "alternativesConsidered": 1,
     "decidedAt": "2026-01-26T01:41:22.268Z"
   },
@@ -1329,7 +1329,7 @@ curl -X POST http://localhost:8080/api/v1/orchestration/start \
   },
   "nodeExecutions": [
     {
-      "nodeId": "offer-accepted",
+      "nodeId": "initialize-onboarding",
       "status": "COMPLETED",
       "result": {"actionType": "SYSTEM_INVOCATION", "executedBy": "default-handler"}
     }
@@ -1643,7 +1643,8 @@ The employee onboarding workflow is a comprehensive reference implementation dem
 
 ```
     ┌─────────────────┐
-    │ Offer Accepted  │ (Entry Point)
+    │ Initialize      │ (Entry Point)
+    │ Onboarding      │
     └────────┬────────┘
              │ offer.status = ACCEPTED
              ▼
@@ -1715,7 +1716,7 @@ requiresReview       │
 ### Process Components
 
 **Nodes (13 total):**
-- `offer-accepted` - Entry point when offer is signed
+- `initialize-onboarding` - Entry point when offer is signed
 - `validate-candidate` - Validate candidate eligibility
 - `run-background-check` - Start background investigation
 - `ai-analyze-background-check` - AI analyzes background results (AGENT_ASSISTED)
@@ -1726,8 +1727,8 @@ requiresReview       │
 - `collect-documents` - HR collects required documents (HUMAN_TASK)
 - `verify-i9` - Verify I-9 compliance (HUMAN_TASK)
 - `schedule-orientation` - Schedule employee orientation
-- `onboarding-complete` - Success terminal
-- `onboarding-cancelled` - Failure terminal
+- `finalize-onboarding` - Success terminal
+- `cancel-onboarding` - Failure terminal
 
 **Edges (19 total):**
 - Sequential transitions with FEEL guards

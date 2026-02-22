@@ -19,9 +19,9 @@ package com.ihelio.cpg.application.onboarding;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.AI_ANALYZE_BACKGROUND;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.COLLECT_DOCUMENTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CREATE_ACCOUNTS;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.OFFER_ACCEPTED;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ONBOARDING_CANCELLED;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ONBOARDING_COMPLETE;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CANCEL_ONBOARDING;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.FINALIZE_ONBOARDING;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.INITIALIZE_ONBOARDING;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ORDER_EQUIPMENT;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.REVIEW_BACKGROUND_RESULTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.RUN_BACKGROUND_CHECK;
@@ -70,7 +70,7 @@ public final class OnboardingEdges {
             new Edge.EdgeId("offer-to-validate"),
             "Start Validation",
             "Begin candidate validation after offer acceptance",
-            OFFER_ACCEPTED,
+            INITIALIZE_ONBOARDING,
             VALIDATE_CANDIDATE,
             GuardConditions.alwaysTrue(),
             ExecutionSemantics.sequential(),
@@ -285,7 +285,7 @@ public final class OnboardingEdges {
             "Review Rejected",
             "Cancel onboarding when background review is unfavorable",
             REVIEW_BACKGROUND_RESULTS,
-            ONBOARDING_CANCELLED,
+            CANCEL_ONBOARDING,
             GuardConditions.ofContext(List.of(
                 FeelExpression.of("backgroundReview.decision = \"REJECTED\"")
             )),
@@ -436,7 +436,7 @@ public final class OnboardingEdges {
             "Complete Onboarding",
             "All prerequisites met, finalize onboarding",
             SCHEDULE_ORIENTATION,
-            ONBOARDING_COMPLETE,
+            FINALIZE_ONBOARDING,
             GuardConditions.ofContext(List.of(
                 FeelExpression.of("orientation.scheduled = true"),
                 FeelExpression.of("accounts.created = true"),
@@ -463,7 +463,7 @@ public final class OnboardingEdges {
             "Validation Failed",
             "Cancel onboarding when candidate validation fails",
             VALIDATE_CANDIDATE,
-            ONBOARDING_CANCELLED,
+            CANCEL_ONBOARDING,
             GuardConditions.ofContext(List.of(
                 FeelExpression.of("validation.status = \"FAILED\"")
             )),
@@ -483,7 +483,7 @@ public final class OnboardingEdges {
             "Background Check Failed",
             "Cancel onboarding when background check fails",
             RUN_BACKGROUND_CHECK,
-            ONBOARDING_CANCELLED,
+            CANCEL_ONBOARDING,
             new GuardConditions(
                 List.of(
                     FeelExpression.of("backgroundCheck.status = \"FAILED\"")

@@ -32,7 +32,7 @@ cpg:
       phases:
         offer-validation:
           name: "Offer & Validation"
-          nodes: ["offer-accepted", "validate-candidate"]
+          nodes: ["initialize-onboarding", "validate-candidate"]
         background-check:
           name: "Background Check"
           nodes: ["run-background-check", "ai-analyze-background-check", "review-background-results"]
@@ -44,7 +44,7 @@ cpg:
           nodes: ["collect-documents", "verify-i9"]
         completion:
           name: "Completion"
-          nodes: ["schedule-orientation", "onboarding-complete"]
+          nodes: ["schedule-orientation", "finalize-onboarding"]
 
 server:
   port: 8080

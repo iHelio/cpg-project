@@ -66,8 +66,8 @@ Before starting orchestration, help the user understand the process:
 │ Structure:                                                                  │
 │   • 12 nodes (actions/decision points)                                      │
 │   • 18 edges (transitions between nodes)                                    │
-│   • Entry points: offer-accepted                                            │
-│   • Terminal points: onboarding-complete, onboarding-cancelled              │
+│   • Entry points: initialize-onboarding                                     │
+│   • Terminal points: finalize-onboarding, cancel-onboarding                 │
 │                                                                             │
 │ Key Events Required:                                                        │
 │   • BackgroundCheckCompleted / BackgroundCheckFailed                        │
@@ -166,7 +166,7 @@ Display completion summary:
 │ Duration: 45.2 seconds                                                       │
 │                                                                              │
 │ Execution Path:                                                              │
-│   ✓ Offer Accepted                                                           │
+│   ✓ Initialize Onboarding                                                    │
 │   ✓ Validate Candidate Data                                                  │
 │   ✓ Initiate Background Check                                                │
 │       ↓ [BackgroundCheckCompleted event received]                            │
@@ -180,7 +180,7 @@ Display completion summary:
 │       ↓ [I9Verified event received]                                          │
 │   ✓ Schedule Orientation                                                     │
 │       ↓ [OrientationScheduled event received]                                │
-│   ✓ Onboarding Complete                                                      │
+│   ✓ Finalize Onboarding                                                      │
 │                                                                              │
 ╰──────────────────────────────────────────────────────────────────────────────╯
 ```
@@ -218,7 +218,7 @@ Display detailed event information with payloads:
 │ Instance: 87e5a6a7-ec80-418a-a16c-1f01b7203808                              │
 │                                                                              │
 │ Current Progress:                                                            │
-│   ✓ Offer Accepted                                                           │
+│   ✓ Initialize Onboarding                                                    │
 │   ✓ Validate Candidate Data                                                  │
 │   ✓ Initiate Background Check                                                │
 │   ⏳ Waiting for external event...                                           │
@@ -257,7 +257,7 @@ Display detailed event information with payloads:
 │                                                                              │
 │ This event will:                                                             │
 │   • Enable edge: background-failed                                           │
-│   • Allow execution of: Onboarding Cancelled                                 │
+│   • Allow execution of: Cancel Onboarding                                    │
 │                                                                              │
 │ Payload that will be sent:                                                   │
 │   {                                                                          │
@@ -364,7 +364,7 @@ When the orchestration completes (either successfully or with failure), call `ge
 │                                                                              │
 ├──────────────────────────────────────────────────────────────────────────────┤
 │                                                                              │
-│ Step 1: Offer Accepted                                                       │
+│ Step 1: Initialize Onboarding                                                │
 │   Time: 12:30:00 - 12:30:01 (1.0s)                                          │
 │   Action: SYSTEM_INVOCATION → initializeOnboarding                          │
 │   Result: Initialized onboarding record                                      │
@@ -394,7 +394,7 @@ When the orchestration completes (either successfully or with failure), call `ge
 │                                                                              │
 │ ... (additional steps) ...                                                   │
 │                                                                              │
-│ Step 10: Onboarding Complete                                                 │
+│ Step 10: Finalize Onboarding                                                 │
 │   Time: 12:31:45 - 12:31:46 (0.3s)                                          │
 │   Action: SYSTEM_INVOCATION → finalizeOnboarding                            │
 │   Result: Onboarding finalized, employee record created                      │

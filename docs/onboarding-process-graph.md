@@ -5,15 +5,15 @@ This document describes the complete employee onboarding workflow as defined in 
 ## Process Overview
 
 - **Graph ID:** `employee-onboarding`
-- **Entry Node:** Offer Accepted
-- **Terminal Nodes:** Onboarding Complete, Onboarding Cancelled
+- **Entry Node:** Initialize Onboarding
+- **Terminal Nodes:** Finalize Onboarding, Cancel Onboarding
 - **Execution Model:** Event-driven, single-step orchestration (no auto-advance)
 
 ---
 
 ## Nodes
 
-### 1. Offer Accepted (`offer-accepted`)
+### 1. Initialize Onboarding (`initialize-onboarding`)
 
 | | |
 |---|---|
@@ -29,10 +29,10 @@ This document describes the complete employee onboarding workflow as defined in 
 |---|---|
 | **Action** | SYSTEM_INVOCATION &mdash; `validateCandidateData` |
 | **Task** | Verify candidate information is complete and valid. Derives start date via `onboarding-policies` DMN. |
-| **Entry Trigger** | Edge from Offer Accepted, activated by `OnboardingStarted` |
+| **Entry Trigger** | Edge from Initialize Onboarding, activated by `OnboardingStarted` |
 | **Exit Event** | _(none)_ |
 | **Transitions Out** | &rarr; Run Background Check (guard: `validation.status = "PASSED"`) |
-| | &rarr; Onboarding Cancelled (guard: `validation.status = "FAILED"`) |
+| | &rarr; Cancel Onboarding (guard: `validation.status = "FAILED"`) |
 
 ### 3. Run Background Check (`run-background-check`)
 
@@ -43,7 +43,7 @@ This document describes the complete employee onboarding workflow as defined in 
 | **Entry Trigger** | Edge from Validate Candidate |
 | **Exit Events** | `BackgroundCheckInitiated` (on start), `BackgroundCheckCompleted` (on complete) |
 | **Transitions Out** | &rarr; AI Analyze Background Check (activated by `BackgroundCheckCompleted`) |
-| | &rarr; Onboarding Cancelled (activated by `BackgroundCheckFailed`) |
+| | &rarr; Cancel Onboarding (activated by `BackgroundCheckFailed`) |
 
 ### 4. AI Analyze Background Check (`ai-analyze-background-check`)
 
@@ -65,7 +65,7 @@ This document describes the complete employee onboarding workflow as defined in 
 | **Entry Trigger** | Subscribes to `BackgroundCheckCompleted` (filtered: `event.requiresReview = true`) |
 | **Exit Event** | `BackgroundReviewCompleted` (on complete) |
 | **Transitions Out** | If **approved**: &rarr; Order Equipment, Create Accounts, Collect Documents **in parallel** |
-| | If **rejected**: &rarr; Onboarding Cancelled |
+| | If **rejected**: &rarr; Cancel Onboarding |
 
 ### 6. Order Equipment (`order-equipment`)
 
@@ -125,9 +125,9 @@ This document describes the complete employee onboarding workflow as defined in 
 | **Task** | Schedule new employee orientation based on start date and location. DMN determines orientation type. |
 | **Entry Trigger** | Converges from Ship Equipment, Create Accounts, and Verify I-9 (first edge whose guards are satisfied) |
 | **Exit Event** | `OrientationScheduled` (on complete) |
-| **Transitions Out** | &rarr; Onboarding Complete (guards: `orientation.scheduled`, `accounts.created`, `documents.collected`, `backgroundCheck.passed`) |
+| **Transitions Out** | &rarr; Finalize Onboarding (guards: `orientation.scheduled`, `accounts.created`, `documents.collected`, `backgroundCheck.passed`) |
 
-### 12. Onboarding Complete (`onboarding-complete`)
+### 12. Finalize Onboarding (`finalize-onboarding`)
 
 | | |
 |---|---|
@@ -137,7 +137,7 @@ This document describes the complete employee onboarding workflow as defined in 
 | **Exit Event** | `OnboardingCompleted` (on complete) |
 | **Transitions Out** | _(terminal node)_ |
 
-### 13. Onboarding Cancelled (`onboarding-cancelled`)
+### 13. Cancel Onboarding (`cancel-onboarding`)
 
 | | |
 |---|---|
@@ -154,7 +154,7 @@ This document describes the complete employee onboarding workflow as defined in 
 ### Happy Path
 
 ```
-Offer Accepted
+Initialize Onboarding
   │  OnboardingStarted
   ▼
 Validate Candidate
@@ -178,7 +178,7 @@ Ship Equipment           │              Verify I-9 (US only)
               Schedule Orientation
                          │  OrientationScheduled
                          ▼
-              Onboarding Complete
+              Finalize Onboarding
 ```
 
 ### AI Review Path (Adverse Findings)
@@ -189,7 +189,7 @@ AI Analyze Background Check
   ▼
 Review Background Results (HR Manager)
   ├─ APPROVED → parallel fork: Order Equipment, Create Accounts, Collect Documents
-  └─ REJECTED → Onboarding Cancelled
+  └─ REJECTED → Cancel Onboarding
 ```
 
 ### Cancellation Paths
@@ -207,11 +207,11 @@ Review Background Results (HR Manager)
 
 | Event | Emitted By | Consumed By |
 |---|---|---|
-| `OfferAccepted` | _(external)_ | Offer Accepted (subscription) |
-| `OnboardingStarted` | Offer Accepted | Edge: offer-to-validate |
+| `OfferAccepted` | _(external)_ | Initialize Onboarding (subscription) |
+| `OnboardingStarted` | Initialize Onboarding | Edge: offer-to-validate |
 | `BackgroundCheckInitiated` | Run Background Check | _(informational)_ |
 | `BackgroundCheckCompleted` | Run Background Check | AI Analyze Background Check; Edge: bgcheck-to-ai-analysis |
-| `BackgroundCheckFailed` | _(external)_ | Onboarding Cancelled; Edge: bgcheck-to-cancelled |
+| `BackgroundCheckFailed` | _(external)_ | Cancel Onboarding; Edge: bgcheck-to-cancelled |
 | `AiAnalysisStarted` | AI Analyze Background Check | _(informational)_ |
 | `AiAnalysisCompleted` | AI Analyze Background Check | Edges to Review, Equipment, Accounts, Documents |
 | `BackgroundReviewCompleted` | Review Background Results | Edges to Equipment, Accounts, Documents, Cancelled |
@@ -223,7 +223,7 @@ Review Background Results (HR Manager)
 | `EmployeeStarted` | _(external)_ | Verify I-9 (subscription) |
 | `I9Verified` | Verify I-9 | Edge: i9-to-orientation |
 | `OrientationScheduled` | Schedule Orientation | Edge: orientation-to-complete |
-| `OnboardingCompleted` | Onboarding Complete | _(informational)_ |
-| `OnboardingCancelled` | Onboarding Cancelled | _(informational)_ |
-| `CandidateWithdrew` | _(external)_ | Onboarding Cancelled (subscription) |
-| `OfferRescinded` | _(external)_ | Onboarding Cancelled (subscription) |
+| `OnboardingCompleted` | Finalize Onboarding | _(informational)_ |
+| `OnboardingCancelled` | Cancel Onboarding | _(informational)_ |
+| `CandidateWithdrew` | _(external)_ | Cancel Onboarding (subscription) |
+| `OfferRescinded` | _(external)_ | Cancel Onboarding (subscription) |

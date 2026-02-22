@@ -141,8 +141,8 @@ Sends an event with auto-populated payload to enable the next workflow step.
 ```
 ╭─ Process Graph: Employee Onboarding ────────────────────╮
 │ Structure: 12 nodes, 18 edges                           │
-│ Entry: offer-accepted                                   │
-│ Terminals: onboarding-complete, onboarding-cancelled    │
+│ Entry: initialize-onboarding                            │
+│ Terminals: finalize-onboarding, cancel-onboarding       │
 │                                                         │
 │ Key Events Required:                                    │
 │   • BackgroundCheckCompleted / BackgroundCheckFailed    │
@@ -226,7 +226,7 @@ Sends an event with auto-populated payload to enable the next workflow step.
 ╭─ Orchestration Complete ────────────────────────────────╮
 │                                                         │
 │ Execution Path:                                         │
-│   ✓ Offer Accepted                                      │
+│   ✓ Initialize Onboarding                               │
 │   ✓ Validate Candidate Data                             │
 │   ✓ Initiate Background Check                           │
 │       ↓ [BackgroundCheckCompleted]                      │
@@ -235,7 +235,7 @@ Sends an event with auto-populated payload to enable the next workflow step.
 │   ✓ Ship Equipment                                      │
 │       ↓ [EquipmentShipped]                              │
 │   ...                                                   │
-│   ✓ Onboarding Complete                                 │
+│   ✓ Finalize Onboarding                                 │
 │                                                         │
 │ Summary:                                                │
 │   Total Nodes: 10 | Events: 6 | Duration: 1m 46s        │
@@ -278,7 +278,7 @@ Sends an event with auto-populated payload to enable the next workflow step.
 ├────────────────────────────────────────────────────────────┤
 │ EXECUTION PROGRESS                                         │
 │                                                            │
-│ ✓ Offer Accepted                     [12:30:01]           │
+│ ✓ Initialize Onboarding              [12:30:01]           │
 │ ✓ Validate Candidate Data            [12:30:02]           │
 │ ✓ Initiate Background Check          [12:30:03]           │
 │ ⏳ Waiting for event...                                    │
@@ -290,7 +290,7 @@ Sends an event with auto-populated payload to enable the next workflow step.
 │   Enables: Equipment Procurement                           │
 │                                                            │
 │ • BackgroundCheckFailed                                    │
-│   Enables: Onboarding Cancelled                            │
+│   Enables: Cancel Onboarding                               │
 │                                                            │
 ╰────────────────────────────────────────────────────────────╯
 
@@ -434,7 +434,7 @@ get_graph_edges graphId="employee-onboarding"
 | Event | Description | Enables |
 |-------|-------------|---------|
 | `BackgroundCheckCompleted` | Background check passed | Equipment Procurement |
-| `BackgroundCheckFailed` | Background check failed | Onboarding Cancelled |
+| `BackgroundCheckFailed` | Background check failed | Cancel Onboarding |
 | `BackgroundReviewCompleted` | Manual review approved | Equipment Procurement |
 | `EquipmentReady` | Equipment ready to ship | Ship Equipment |
 | `EquipmentShipped` | Equipment shipped | (parallel branch complete) |

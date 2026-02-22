@@ -1,7 +1,7 @@
 %%{init: {'theme': 'base', 'themeVariables': { 'primaryColor': '#e3f2fd', 'primaryTextColor': '#01579b'}}}%%
 flowchart TB
     subgraph Entry["Entry Point"]
-        A[("offer-accepted<br/>Offer Accepted")]
+        A[("initialize-onboarding<br/>Initialize Onboarding")]
     end
 
     subgraph Validation["Initial Validation"]
@@ -30,11 +30,11 @@ flowchart TB
 
     subgraph Completion["Completion"]
         J["schedule-orientation<br/>Schedule Orientation"]
-        K(["onboarding-complete<br/>Onboarding Complete"])
+        K(["finalize-onboarding<br/>Finalize Onboarding"])
     end
 
     subgraph Cancellation["Cancellation Path"]
-        L(["onboarding-cancelled<br/>Onboarding Cancelled"])
+        L(["cancel-onboarding<br/>Cancel Onboarding"])
     end
 
     %% Main flow - Entry to Validation

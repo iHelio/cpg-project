@@ -72,7 +72,7 @@ Combine the gathered information into a comprehensive status display:
 │ EXECUTION PROGRESS                                         │
 │ ════════════════════════════════════════════════════════   │
 │                                                            │
-│ ✓ Offer Accepted                     [12:00:01 - 12:00:02] │
+│ ✓ Initialize Onboarding              [12:00:01 - 12:00:02] │
 │ ✓ Validate Candidate Data            [12:00:02 - 12:00:03] │
 │ ✓ Initiate Background Check          [12:00:03 - 12:00:04] │
 │ ⏳ (waiting for event)                                     │

@@ -53,7 +53,7 @@ import java.util.List;
 public final class OnboardingNodes {
 
     // Node IDs as constants for reference in edges
-    public static final NodeId OFFER_ACCEPTED = new NodeId("offer-accepted");
+    public static final NodeId INITIALIZE_ONBOARDING = new NodeId("initialize-onboarding");
     public static final NodeId VALIDATE_CANDIDATE = new NodeId("validate-candidate");
     public static final NodeId RUN_BACKGROUND_CHECK = new NodeId("run-background-check");
     public static final NodeId AI_ANALYZE_BACKGROUND = new NodeId("ai-analyze-background-check");
@@ -64,19 +64,19 @@ public final class OnboardingNodes {
     public static final NodeId COLLECT_DOCUMENTS = new NodeId("collect-documents");
     public static final NodeId VERIFY_I9 = new NodeId("verify-i9");
     public static final NodeId SCHEDULE_ORIENTATION = new NodeId("schedule-orientation");
-    public static final NodeId ONBOARDING_COMPLETE = new NodeId("onboarding-complete");
-    public static final NodeId ONBOARDING_CANCELLED = new NodeId("onboarding-cancelled");
+    public static final NodeId FINALIZE_ONBOARDING = new NodeId("finalize-onboarding");
+    public static final NodeId CANCEL_ONBOARDING = new NodeId("cancel-onboarding");
 
     private OnboardingNodes() {
     }
 
     /**
-     * Entry node: Offer has been accepted by the candidate.
+     * Entry node: Initialize the onboarding process after offer acceptance.
      */
-    public static Node offerAccepted() {
+    public static Node initializeOnboarding() {
         return new Node(
-            OFFER_ACCEPTED,
-            "Offer Accepted",
+            INITIALIZE_ONBOARDING,
+            "Initialize Onboarding",
             "Triggered when a candidate accepts an employment offer",
             1,
             Preconditions.none(),
@@ -555,12 +555,12 @@ public final class OnboardingNodes {
     }
 
     /**
-     * Terminal node: Onboarding completed successfully.
+     * Terminal node: Finalize the onboarding process.
      */
-    public static Node onboardingComplete() {
+    public static Node finalizeOnboarding() {
         return new Node(
-            ONBOARDING_COMPLETE,
-            "Onboarding Complete",
+            FINALIZE_ONBOARDING,
+            "Finalize Onboarding",
             "All onboarding steps completed successfully",
             1,
             new Preconditions(
@@ -591,12 +591,12 @@ public final class OnboardingNodes {
     }
 
     /**
-     * Terminal node: Onboarding cancelled.
+     * Terminal node: Cancel the onboarding process.
      */
-    public static Node onboardingCancelled() {
+    public static Node cancelOnboarding() {
         return new Node(
-            ONBOARDING_CANCELLED,
-            "Onboarding Cancelled",
+            CANCEL_ONBOARDING,
+            "Cancel Onboarding",
             "Onboarding was cancelled due to withdrawal or failure",
             1,
             Preconditions.none(),
@@ -627,7 +627,7 @@ public final class OnboardingNodes {
      */
     public static List<Node> all() {
         return List.of(
-            offerAccepted(),
+            initializeOnboarding(),
             validateCandidate(),
             runBackgroundCheck(),
             aiAnalyzeBackgroundCheck(),
@@ -638,8 +638,8 @@ public final class OnboardingNodes {
             collectDocuments(),
             verifyI9(),
             scheduleOrientation(),
-            onboardingComplete(),
-            onboardingCancelled()
+            finalizeOnboarding(),
+            cancelOnboarding()
         );
     }
 }

@@ -16,9 +16,9 @@
 
 package com.ihelio.cpg.application.onboarding;
 
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.OFFER_ACCEPTED;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ONBOARDING_CANCELLED;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ONBOARDING_COMPLETE;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CANCEL_ONBOARDING;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.FINALIZE_ONBOARDING;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.INITIALIZE_ONBOARDING;
 
 import com.ihelio.cpg.domain.model.ProcessGraph;
 import com.ihelio.cpg.domain.model.ProcessGraph.Metadata;
@@ -70,8 +70,8 @@ public final class OnboardingProcessGraphBuilder {
             ProcessGraphStatus.PUBLISHED,
             OnboardingNodes.all(),
             OnboardingEdges.all(),
-            List.of(OFFER_ACCEPTED),
-            List.of(ONBOARDING_COMPLETE, ONBOARDING_CANCELLED),
+            List.of(INITIALIZE_ONBOARDING),
+            List.of(FINALIZE_ONBOARDING, CANCEL_ONBOARDING),
             createMetadata()
         );
     }
@@ -90,8 +90,8 @@ public final class OnboardingProcessGraphBuilder {
             ProcessGraphStatus.DRAFT,
             OnboardingNodes.all(),
             OnboardingEdges.all(),
-            List.of(OFFER_ACCEPTED),
-            List.of(ONBOARDING_COMPLETE, ONBOARDING_CANCELLED),
+            List.of(INITIALIZE_ONBOARDING),
+            List.of(FINALIZE_ONBOARDING, CANCEL_ONBOARDING),
             createMetadata()
         );
     }

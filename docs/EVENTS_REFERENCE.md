@@ -113,7 +113,7 @@ Domain events represent business process signals, typically from external system
 
 **Description:** Signals that the onboarding process has been initiated.
 
-**Triggers Edge:** `offer-to-validate` (Offer Accepted → Validate Candidate)
+**Triggers Edge:** `offer-to-validate` (Initialize Onboarding → Validate Candidate)
 
 **Payload:**
 ```json
@@ -707,7 +707,8 @@ System events are used for orchestration control and node lifecycle management.
                                              │
                                              ▼
                                     ┌─────────────────┐
-                                    │ Offer Accepted  │
+                                    │  Initialize     │
+                                    │  Onboarding     │
                                     └────────┬────────┘
                                              │
                                              │ (auto - no event needed)
@@ -792,8 +793,8 @@ Completed         Completed             │                        │      │
                                                               │
                                                               ▼
                                                      ┌─────────────────┐
+                                                     │ Finalize        │
                                                      │ Onboarding      │
-                                                     │ Complete        │
                                                      └─────────────────┘
 ```
 

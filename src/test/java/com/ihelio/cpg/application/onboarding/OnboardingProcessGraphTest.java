@@ -19,9 +19,9 @@ package com.ihelio.cpg.application.onboarding;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.AI_ANALYZE_BACKGROUND;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.COLLECT_DOCUMENTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CREATE_ACCOUNTS;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.OFFER_ACCEPTED;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ONBOARDING_CANCELLED;
-import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ONBOARDING_COMPLETE;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.CANCEL_ONBOARDING;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.FINALIZE_ONBOARDING;
+import static com.ihelio.cpg.application.onboarding.OnboardingNodes.INITIALIZE_ONBOARDING;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.ORDER_EQUIPMENT;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.REVIEW_BACKGROUND_RESULTS;
 import static com.ihelio.cpg.application.onboarding.OnboardingNodes.RUN_BACKGROUND_CHECK;
@@ -82,7 +82,7 @@ class OnboardingProcessGraphTest {
                 .map(Node::id)
                 .collect(Collectors.toSet());
 
-            assertTrue(nodeIds.contains(OFFER_ACCEPTED));
+            assertTrue(nodeIds.contains(INITIALIZE_ONBOARDING));
             assertTrue(nodeIds.contains(VALIDATE_CANDIDATE));
             assertTrue(nodeIds.contains(RUN_BACKGROUND_CHECK));
             assertTrue(nodeIds.contains(AI_ANALYZE_BACKGROUND));
@@ -93,8 +93,8 @@ class OnboardingProcessGraphTest {
             assertTrue(nodeIds.contains(COLLECT_DOCUMENTS));
             assertTrue(nodeIds.contains(VERIFY_I9));
             assertTrue(nodeIds.contains(SCHEDULE_ORIENTATION));
-            assertTrue(nodeIds.contains(ONBOARDING_COMPLETE));
-            assertTrue(nodeIds.contains(ONBOARDING_CANCELLED));
+            assertTrue(nodeIds.contains(FINALIZE_ONBOARDING));
+            assertTrue(nodeIds.contains(CANCEL_ONBOARDING));
         }
 
         @Test
@@ -107,11 +107,11 @@ class OnboardingProcessGraphTest {
         @DisplayName("Graph has correct entry and terminal nodes")
         void graphHasCorrectEntryAndTerminalNodes() {
             assertEquals(1, graph.entryNodeIds().size());
-            assertEquals(OFFER_ACCEPTED, graph.entryNodeIds().get(0));
+            assertEquals(INITIALIZE_ONBOARDING, graph.entryNodeIds().get(0));
 
             assertEquals(2, graph.terminalNodeIds().size());
-            assertTrue(graph.terminalNodeIds().contains(ONBOARDING_COMPLETE));
-            assertTrue(graph.terminalNodeIds().contains(ONBOARDING_CANCELLED));
+            assertTrue(graph.terminalNodeIds().contains(FINALIZE_ONBOARDING));
+            assertTrue(graph.terminalNodeIds().contains(CANCEL_ONBOARDING));
         }
 
         @Test
@@ -138,7 +138,7 @@ class OnboardingProcessGraphTest {
         @Test
         @DisplayName("Offer accepted node is system invocation")
         void offerAcceptedNodeIsSystemInvocation() {
-            Node node = graph.findNode(OFFER_ACCEPTED).orElseThrow();
+            Node node = graph.findNode(INITIALIZE_ONBOARDING).orElseThrow();
             assertEquals(ActionType.SYSTEM_INVOCATION, node.action().type());
             assertEquals("initializeOnboarding", node.action().handlerRef());
         }
@@ -184,7 +184,7 @@ class OnboardingProcessGraphTest {
         @Test
         @DisplayName("Cancelled node subscribes to failure events")
         void cancelledNodeSubscribesToFailureEvents() {
-            Node node = graph.findNode(ONBOARDING_CANCELLED).orElseThrow();
+            Node node = graph.findNode(CANCEL_ONBOARDING).orElseThrow();
             var subscriptions = node.eventConfig().subscribes();
             assertEquals(3, subscriptions.size());
 
@@ -204,7 +204,7 @@ class OnboardingProcessGraphTest {
         @Test
         @DisplayName("Edge from offer to validate has no guards")
         void offerToValidateHasNoGuards() {
-            List<Edge> edges = graph.getOutboundEdges(OFFER_ACCEPTED);
+            List<Edge> edges = graph.getOutboundEdges(INITIALIZE_ONBOARDING);
             assertEquals(1, edges.size());
 
             Edge edge = edges.get(0);
@@ -239,7 +239,7 @@ class OnboardingProcessGraphTest {
         void reviewRejectionIsExclusive() {
             List<Edge> edges = graph.getOutboundEdges(REVIEW_BACKGROUND_RESULTS);
             Edge rejectionEdge = edges.stream()
-                .filter(e -> e.targetNodeId().equals(ONBOARDING_CANCELLED))
+                .filter(e -> e.targetNodeId().equals(CANCEL_ONBOARDING))
                 .findFirst()
                 .orElseThrow();
 
@@ -282,7 +282,7 @@ class OnboardingProcessGraphTest {
         @Test
         @DisplayName("Find node by ID")
         void findNodeById() {
-            assertTrue(graph.findNode(OFFER_ACCEPTED).isPresent());
+            assertTrue(graph.findNode(INITIALIZE_ONBOARDING).isPresent());
             assertTrue(graph.findNode(new NodeId("nonexistent")).isEmpty());
         }
 
@@ -315,7 +315,7 @@ class OnboardingProcessGraphTest {
         void nodeMapLookup() {
             var nodeMap = graph.nodeMap();
             assertEquals(13, nodeMap.size());
-            assertNotNull(nodeMap.get(OFFER_ACCEPTED));
+            assertNotNull(nodeMap.get(INITIALIZE_ONBOARDING));
             assertNotNull(nodeMap.get(AI_ANALYZE_BACKGROUND));
         }
     }
