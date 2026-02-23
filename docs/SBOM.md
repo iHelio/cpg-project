@@ -179,11 +179,13 @@ Best practices for SBOM management:
 
 ## Current Project SBOM Summary
 
+*Last generated: 2026-02-22*
+
 | Metric | Value |
 |--------|-------|
-| Total Components | ~110 |
-| Direct Dependencies | ~17 |
-| Transitive Dependencies | ~93 |
+| Total Components | 143 |
+| Direct Dependencies | 10 |
+| Transitive Dependencies | 133 |
 | Primary Framework | Spring Boot 3.4.1 |
 | Java Version | 21 |
 
@@ -192,13 +194,13 @@ Best practices for SBOM management:
 | Category | Library | Version |
 |----------|---------|---------|
 | Web Framework | Spring Boot Starter Web | 3.4.1 |
+| AI Integration | Spring AI Anthropic | 1.1.2 |
+| MCP Server | Spring AI MCP Server WebMVC | 1.1.2 |
+| DMN Engine | KIE DMN Core | 9.44.0.Final |
+| Expression Language | KIE DMN FEEL | 9.44.0.Final |
 | JSON Processing | Jackson Databind | 2.18.2 |
 | Validation | Jakarta Validation | 3.0.2 |
-| DMN Engine | KIE DMN Core | 9.44.0.Final |
-| MCP Server | Spring AI MCP Server WebMVC | 1.1.2 |
-| Expression Language | FEEL Engine | 9.44.0.Final |
 | Logging | Logback Classic | 1.5.12 |
-| Testing | JUnit Jupiter | 5.11.4 |
 
 ## References
 
