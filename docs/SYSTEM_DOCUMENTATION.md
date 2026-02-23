@@ -491,7 +491,7 @@ The `ProcessExecutionEngine` is the main orchestrator that coordinates all execu
 │  │  • startProcess()      - Begin new instance                  ││
 │  │  • suspendProcess()    - Pause execution                     ││
 │  │  • resumeProcess()     - Continue execution                  ││
-│  │  • executeNode()       - Run a specific node                 ││
+│  │  • executeNode()       - Run a specific node (full lifecycle) ││
 │  │  • evaluateAndTraverseEdges() - Find next nodes              ││
 │  │  • handleEvent()       - Process external events             ││
 │  └─────────────────────────────────────────────────────────────┘│
@@ -507,6 +507,17 @@ The `ProcessExecutionEngine` is the main orchestrator that coordinates all execu
 │  └───────────────────────────────────────────────────────────┘  │
 └─────────────────────────────────────────────────────────────────┘
 ```
+
+### Node Execution Lifecycle
+
+The `executeNode()` method manages the **complete node lifecycle** as a single atomic operation:
+1. Evaluate preconditions (FEEL expressions, policy gates, business rules)
+2. Mark node as `EXECUTING` on the process instance
+3. Run the registered `ActionHandler` for the node type
+4. Update accumulated context with handler output
+5. Mark node as `COMPLETED` (or `FAILED` if the handler errors)
+
+This ensures the orchestrator never needs to call individual lifecycle steps — it receives a `NodeExecutionResult` indicating success or failure.
 
 ### Engine Components
 
@@ -703,7 +714,9 @@ ORCHESTRATION LOOP:
      d. Determine eligible navigation space
      e. Select next best action(s) deterministically
      f. Enforce governance before execution
-     g. Execute and trace decision
+     g. Delegate node execution to engine (engine manages full lifecycle)
+     h. Detect execution failure → abort and trace error
+     i. Record governance and trace decision
 
 DETERMINISTIC SELECTION:
   1. Build eligible space: {eligible nodes × traversable edges}
@@ -799,6 +812,9 @@ public class InstanceOrchestrator {
                                               RuntimeContext context, String eventType);
 }
 ```
+
+**Execution Responsibility Split:**
+The orchestrator delegates to `ProcessExecutionEngine.executeNode()` which manages the full node lifecycle internally (precondition evaluation, start, handler execution, context update, completion). The orchestrator does **not** call node lifecycle methods directly — it checks the returned `NodeExecutionResult` for failure before recording governance and tracing the decision. If execution failed, the orchestrator aborts immediately and traces the error.
 
 **OrchestrationResult Status:**
 
