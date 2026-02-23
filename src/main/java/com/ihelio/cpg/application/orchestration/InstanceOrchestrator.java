@@ -1,11 +1,11 @@
 /*
- * Copyright 2026 ihelio
+ * Copyright © 2026 ihelio (${email})
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.ihelio.cpg.application.orchestration;
 
 import com.ihelio.cpg.domain.engine.ProcessExecutionEngine;
@@ -152,9 +151,7 @@ public class InstanceOrchestrator {
 
         String executionId = UUID.randomUUID().toString();
         try {
-            instance.startNodeExecution(node.id());
             var executionResult = executionEngine.executeNode(instance, graph, node);
-            instance.completeNodeExecution(node.id(), executionResult.getOutput());
             executionGovernor.recordExecution(instance, node, context, executionId);
 
             RuntimeContext updatedContext = RuntimeContext.fromExecutionContext(instance.context())
