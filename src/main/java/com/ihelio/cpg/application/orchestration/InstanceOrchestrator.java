@@ -152,6 +152,16 @@ public class InstanceOrchestrator {
         String executionId = UUID.randomUUID().toString();
         try {
             var executionResult = executionEngine.executeNode(instance, graph, node);
+
+            if (executionResult.isFailed()) {
+                DecisionTrace trace = buildFailedTrace(
+                    instance, context, eligibleSpace, decision, governance,
+                    executionResult.error());
+                decisionTracer.record(trace);
+                return OrchestrationResult.failed(
+                    instance, decision, trace, executionResult.error());
+            }
+
             executionGovernor.recordExecution(instance, node, context, executionId);
 
             RuntimeContext updatedContext = RuntimeContext.fromExecutionContext(instance.context())

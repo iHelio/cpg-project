@@ -1,11 +1,11 @@
 /*
- * Copyright 2026 ihelio
+ * Copyright © 2026 ihelio (${email})
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
  * You may obtain a copy of the License at
  *
- *     https://www.apache.org/licenses/LICENSE-2.0
+ *     http://www.apache.org/licenses/LICENSE-2.0
  *
  * Unless required by applicable law or agreed to in writing, software
  * distributed under the License is distributed on an "AS IS" BASIS,
@@ -13,7 +13,6 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-
 package com.ihelio.cpg.application.handler;
 
 import com.ihelio.cpg.domain.action.ActionContext;
@@ -132,8 +131,20 @@ public class AiBackgroundAnalystHandler implements ActionHandler {
         Object offer = feelContext.get("offer");
         if (offer instanceof Map) {
             Map<String, Object> offerMap = (Map<String, Object>) offer;
-            backgroundCheckMap.put("position", offerMap.get("position"));
-            backgroundCheckMap.put("department", offerMap.get("department"));
+            Object pos = offerMap.get("position");
+            if (pos != null) backgroundCheckMap.put("position", pos);
+            Object dept = offerMap.get("department");
+            if (dept != null) backgroundCheckMap.put("department", dept);
+        }
+
+        // Fall back to domain context for position/department
+        if (!backgroundCheckMap.containsKey("position")) {
+            Object pos = feelContext.get("position");
+            if (pos != null) backgroundCheckMap.put("position", pos);
+        }
+        if (!backgroundCheckMap.containsKey("department")) {
+            Object dept = feelContext.get("department");
+            if (dept != null) backgroundCheckMap.put("department", dept);
         }
 
         return BackgroundCheckData.fromContext(backgroundCheckMap);
