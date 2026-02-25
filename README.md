@@ -145,6 +145,7 @@ start_orchestration employee-onboarding
 ## Documentation
 
 - [System Documentation](docs/SYSTEM_DOCUMENTATION.md) — Architecture, domain model, API reference, and examples
+- [Plugin, Connector & Cowork Design](docs/PLUGIN_CONNECTOR_COWORK_DESIGN.md) — How to extend CPG with plugins, connectors, and AI cowork based on Anthropic's recommendations
 - [MCP Tools Guide](docs/MCP_TOOLS_GUIDE.md) — Guide for AI clients using MCP tools for workflow automation
 - [MCP App Installation](docs/MCP_APP_INSTALLATION.md) — Docker and Claude Desktop setup
 - [Claude Desktop Setup](docs/claude-desktop-setup.md) — Onboarding Assistant for hiring managers
